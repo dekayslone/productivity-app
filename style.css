@@ -309,7 +309,7 @@ h3 { margin: 4px 0 0; font: 600 1rem "Space Grotesk", sans-serif; }
 	.brand, .nav-label { display: none; }
 	.sidebar-foot { display: contents; }
 	.sidebar-foot button { margin: 0; }
-	nav button { flex: 1; min-width: 0; display: block; width: auto; padding: 8px 4px; font-size: 0.72rem; line-height: 1.25; text-align: center; }
+	nav button { flex: 1; min-width: 0; min-height: 44px; display: block; width: auto; padding: 8px 4px; font-size: 0.72rem; line-height: 1.25; text-align: center; }
 	nav button.on::before { top: -4px; left: 50%; width: 22px; height: 2px; transform: translateX(-50%); }
 	.nav-icon { display: block; width: auto; margin: 0 auto 3px; }
 }
@@ -621,4 +621,14 @@ body.auth-mode #app { display: none; }
 @media (max-width: 400px) {
 	.auth-shell { align-items: start; padding: 12px; }
 	.auth-card { padding: 26px 20px; }
+}
+@media (max-width: 400px) and (min-height: 680px) {
+	.auth-shell { align-items: center; padding: max(12px, env(safe-area-inset-top, 0px)) 12px max(12px, env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 400px) and (max-height: 679px) {
+	.auth-shell { padding-top: max(12px, env(safe-area-inset-top, 0px)); padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 520px) {
+	.auth-card .auth-forgot, .auth-card .auth-switch { min-height: 44px; }
+	#toast { bottom: calc(130px + env(safe-area-inset-bottom, 0px)); }
 }

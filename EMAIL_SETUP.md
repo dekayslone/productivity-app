@@ -24,7 +24,7 @@ Messages go to the confirmed email address on the user's Supabase account. Sched
 4. Set the server-only secrets and deploy the function. Use a long random value for `EMAIL_CRON_SECRET` and keep it private:
 
    ```powershell
-   supabase secrets set RESEND_API_KEY="YOUR_RESEND_API_KEY" EMAIL_CRON_SECRET="YOUR_RANDOM_CRON_SECRET" MAIL_FROM="Focus <updates@your-verified-domain.com>"
+   supabase secrets set RESEND_API_KEY="YOUR_RESEND_API_KEY" EMAIL_CRON_SECRET="YOUR_RANDOM_CRON_SECRET" MAIL_FROM="Hoptasks <updates@your-verified-domain.com>"
    supabase functions deploy send-focus-emails --no-verify-jwt
    ```
 
@@ -41,13 +41,13 @@ create extension if not exists pg_net;
 select vault.create_secret(
   'https://YOUR_PROJECT_REF.supabase.co/functions/v1/send-focus-emails',
   'focus_email_endpoint',
-  'Focus scheduled email function URL'
+  'Hoptasks scheduled email function URL'
 );
 
 select vault.create_secret(
   'YOUR_RANDOM_CRON_SECRET',
   'focus_email_cron_secret',
-  'Bearer secret for Focus email cron'
+  'Bearer secret for Hoptasks email cron'
 );
 
 select cron.unschedule(jobid)

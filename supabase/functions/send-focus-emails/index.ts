@@ -50,8 +50,8 @@ const dailyEmail = (state: Record<string, any>, today: string) => {
     ? `<ul>${habits.slice(0, 8).map(habit => `<li>${escapeHtml(habit.name)}</li>`).join("")}</ul>`
     : "<p>Your daily habits are complete.</p>";
   return {
-    subject: `Your Focus plan for ${formatDate(today)}`,
-    html: emailLayout("A fresh day, a clear plan", `Here is your Focus check-in for ${formatDate(today)}.`, [
+    subject: `Your Hoptasks plan for ${formatDate(today)}`,
+    html: emailLayout("A fresh day, a clear plan", `Here is your Hoptasks check-in for ${formatDate(today)}.`, [
       ["Tasks to review", dueHtml], ["Habits to keep moving", habitHtml],
     ]),
   };
@@ -82,8 +82,8 @@ const weeklyEmail = (state: Record<string, any>, start: string) => {
   });
   const habitHtml = habitRows.length ? `<ul>${habitRows.join("")}</ul>` : "<p>No habits tracked this week.</p>";
   return {
-    subject: `Your weekly Focus progress · ${formatDate(start)}`,
-    html: emailLayout("Your week in Focus", `${formatDate(start)} – ${formatDate(end)}`, [
+    subject: `Your weekly Hoptasks progress · ${formatDate(start)}`,
+    html: emailLayout("Your week in Hoptasks", `${formatDate(start)} – ${formatDate(end)}`, [
       ["Tasks completed", `<strong>${completedTasks.length}/${weekTasks.length}</strong>`],
       ["Completion rate", `<strong>${completionRate}%</strong>`],
       ["Goals progressed", `<strong>${progressedGoals}/${weeklyGoals.size}</strong>`],
@@ -116,7 +116,7 @@ const monthlyEmail = (state: Record<string, any>, start: string, end: string) =>
     ? `<ul>${goalWins.slice(0, 5).map((goal: any) => `<li>${escapeHtml(goal.title)}</li>`).join("")}</ul>`
     : "<p>Keep building; every completed task adds up.</p>";
   return {
-    subject: `Your Focus wins from ${new Intl.DateTimeFormat("en", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${start}T12:00:00.000Z`))}`,
+    subject: `Your Hoptasks wins from ${new Intl.DateTimeFormat("en", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${start}T12:00:00.000Z`))}`,
     html: emailLayout("A month of progress", `${formatDate(start)} – ${formatDate(end)}`, [
       ["Tasks completed", `<strong>${completed.length}</strong>`],
       ["Habit sessions", `<strong>${habitSessions}</strong> <span>across ${activeDays.size} task-active days</span>`],
@@ -127,7 +127,7 @@ const monthlyEmail = (state: Record<string, any>, start: string, end: string) =>
 };
 
 function emailLayout(title: string, subtitle: string, sections: [string, string][]) {
-  return `<!doctype html><html><body style="margin:0;background:#f3f7f4;color:#20312b;font:16px/1.6 Arial,sans-serif"><main style="max-width:600px;margin:32px auto;padding:32px;background:#fff;border:1px solid #dce8e2;border-radius:14px"><div style="color:#267b65;font-weight:bold;letter-spacing:2px;font-size:12px">FOCUS</div><h1 style="margin:12px 0 4px;font-size:27px">${escapeHtml(title)}</h1><p style="margin:0 0 24px;color:#687b72">${escapeHtml(subtitle)}</p>${sections.map(([heading, content]) => `<section style="padding:16px 0;border-top:1px solid #e5eee8"><h2 style="margin:0 0 8px;font-size:17px">${escapeHtml(heading)}</h2>${content}</section>`).join("")}<p style="margin:24px 0 0;color:#718078;font-size:12px">You received this because email updates are enabled in your Focus settings.</p></main></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#f3f7f4;color:#20312b;font:16px/1.6 Arial,sans-serif"><main style="max-width:600px;margin:32px auto;padding:32px;background:#fff;border:1px solid #dce8e2;border-radius:14px"><div style="color:#267b65;font-weight:bold;letter-spacing:2px;font-size:12px">HOPTASKS</div><h1 style="margin:12px 0 4px;font-size:27px">${escapeHtml(title)}</h1><p style="margin:0 0 24px;color:#687b72">${escapeHtml(subtitle)}</p>${sections.map(([heading, content]) => `<section style="padding:16px 0;border-top:1px solid #e5eee8"><h2 style="margin:0 0 8px;font-size:17px">${escapeHtml(heading)}</h2>${content}</section>`).join("")}<p style="margin:24px 0 0;color:#718078;font-size:12px">You received this because email updates are enabled in your Hoptasks settings.</p></main></body></html>`;
 }
 
 const normalizeTimezone = (timezone?: string) => ({

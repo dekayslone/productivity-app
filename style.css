@@ -563,7 +563,7 @@ body:has(.analytics-page) #topbar { background: #0e1718; border-color: #263637; 
 .compose-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--tx); font-size: 0.8rem; }
 .compose-title svg { width: 16px; color: var(--ac); }
 .compose-title span { color: var(--mut); font-size: 0.7rem; }
-.compose-grid { display: grid; grid-template-columns: minmax(180px, 1.5fr) minmax(180px, 1.2fr) 145px minmax(130px, 1fr) auto; gap: 8px; }
+.compose-grid { display: grid; grid-template-columns: minmax(150px, 1.4fr) minmax(150px, 1fr) minmax(130px, 0.9fr) minmax(150px, 1.2fr) minmax(120px, 0.9fr) auto; gap: 8px; }
 .compose-grid button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }
 .compose-grid button svg { width: 15px; height: 15px; }
 .compose-grid button:disabled { cursor: not-allowed; opacity: 0.45; }

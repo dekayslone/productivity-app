@@ -7,7 +7,7 @@ S.profile=S.profile||{name:"Your Name",email:"you@example.com",role:"Productive 
 S.meta=S.meta||{lastDay:null};
 S.history=S.history||{};
 S.weeklyHistory=S.weeklyHistory||{};
-let tab="today",gm=null,mem={},analyticsFocus=null,editingGoal=null,editingTask=null,schedulerDate=null,analyticsMonth=null,authUser=null,cloudHydrated=false,authMode="login",weeklyPreviewOpen=false,mobileMoreOpen=false;
+let tab="today",gm=null,mem={},analyticsFocus=null,editingGoal=null,editingTask=null,schedulerDate=null,analyticsMonth=null,authUser=null,cloudHydrated=false,authMode="login",weeklyPreviewOpen=false,mobileMoreOpen=false,notificationOpen=false;
 const save=()=>{try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}if(authUser&&cloudHydrated)syncCloud()};
 if(!S.meta.lastDay || !S.history || !S.weeklyHistory){S.meta=S.meta||{lastDay:null};S.history=S.history||{};S.weeklyHistory=S.weeklyHistory||{};save();}
 const buildDailySummary=(date=td())=>{const tasks=allTasks().filter(x=>x.t.done&&x.t.doneOn===date),habitEntries=S.habits.map(h=>({id:h.id,name:h.name,target:h.target||1,value: h.log[date]||0,done:(h.kind==="weekly"?(h.log[date]||0)>0:(h.log[date]||0)>=((h.target||1)))})).filter(h=>h.done||h.value>0),completedHabits=habitEntries.filter(h=>h.done).length,totalTasks=tasks.length,totalHabits=habitEntries.length,score=totalTasks+totalHabits?Math.round((completedHabits+totalTasks)/(totalTasks+totalHabits||1)*100):0;return {date,tasks:tasks.map(x=>({id:x.t.id,title:x.t.t,goal:x.g.title,project:x.p.title,doneOn:x.t.doneOn,category:x.t.cat||"General"})),habits:habitEntries,completedTasks:totalTasks,completedHabits,score,totalActivities:totalTasks+totalHabits};};
@@ -45,6 +45,17 @@ function toast(t){const e=document.getElementById("toast");e.textContent=t;e.sty
 const tasksOf=g=>g.projects.flatMap(p=>p.tasks);
 const prog=g=>{const t=tasksOf(g);return t.length?Math.round(100*t.filter(x=>x.done).length/t.length):0};
 const allTasks=()=>S.goals.flatMap(g=>g.projects.flatMap(p=>p.tasks.map(t=>({t,g,p}))));
+function getNotifications(){
+  const today=td(),tasks=allTasks().filter(({t})=>!t.done&&t.due&&t.due<=today).sort((a,b)=>a.t.due.localeCompare(b.t.due));
+  const taskItems=tasks.map(({t})=>({id:`task-${t.id}`,icon:t.due<today?"triangle-alert":"calendar-clock",title:t.due<today?"Overdue task":"Due today",detail:`${t.t} · ${new Date(`${t.due}T12:00`).toLocaleDateString(undefined,{month:"short",day:"numeric"})}`,tab:"tasks"}));
+  const habitItems=S.habits.filter(habit=>habit.kind!=="weekly"&&!ok(habit,today)).map(habit=>({id:`habit-${habit.id}`,icon:"repeat-2",title:"Daily habit still open",detail:habit.name,tab:"habits"}));
+  const badgeItems=(S.gamification?.badges||[]).filter(badge=>badge.earnedOn===today).map(badge=>({id:`badge-${badge.id}`,icon:"award",title:"Badge earned",detail:badge.title,tab:"profile"}));
+  return[...taskItems,...habitItems,...badgeItems];
+}
+function notificationCenter(){
+  const items=getNotifications(),count=items.length,label=count>9?"9+":String(count);
+  return `<div class="notification-center"><button type="button" class="notification-button" data-a="notifications" aria-label="Notifications, ${count} active" aria-haspopup="dialog" aria-expanded="${notificationOpen}"><i data-lucide="bell"></i>${count?`<span class="notification-count">${label}</span>`:""}</button>${notificationOpen?`<section class="notification-panel" role="dialog" aria-label="Notifications"><header><strong>Notifications</strong><span>${count?`${count} active`:"All caught up"}</span></header><div class="notification-list">${items.map(item=>`<button type="button" class="notification-item" data-tab="${item.tab}" data-notice="${esc(item.id)}"><span class="notification-icon"><i data-lucide="${item.icon}"></i></span><span><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></span></button>`).join("")||`<p class="notifications-empty">No tasks due and no habits waiting today.</p>`}</div></section>`:""}</div>`;
+}
 const ok=(h,d)=>(h.log[d]||0)>=(h.kind==="weekly"?1:(h.target||1));
 function streak(h){let d=td();if(!ok(h,d))d=addDays(d,-1);let n=0;while(ok(h,d)){n++;d=addDays(d,-1)}return n}
 const wkStart=()=>addDays(td(),-((new Date().getDay()+6)%7));
@@ -316,7 +327,7 @@ function render(){
   const previewFrame=document.getElementById("weekly-email-preview");if(previewFrame){const preview=weeklyEmailPreview();document.getElementById("weekly-preview-subject").textContent=preview.subject;previewFrame.srcdoc=preview.html}
   const titles={today:"Today",goals:"Goals",tasks:"Tasks",scheduler:"Scheduler",habits:"Habits",review:"Reviews",history:"Growth",profile:"Profile"};
   const initials=(S.profile?.name||"Your Name").split(/\s+/).filter(Boolean).slice(0,2).map(word=>word[0]).join("").toUpperCase()||"YN";
-  document.getElementById("topbar").innerHTML=`<div class="crumb"><span>Workspace</span><b>/</b><strong>${titles[tab]}</strong></div><div class="top-actions"><span class="top-date">${new Date().toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})}</span><button class="top-logout" data-a="logout" aria-label="Log out"><i data-lucide="log-out"></i><span>Log out</span></button><span class="avatar">${initials}</span></div>`;
+  document.getElementById("topbar").innerHTML=`<div class="crumb"><span>Workspace</span><b>/</b><strong>${titles[tab]}</strong></div><div class="top-actions"><span class="top-date">${new Date().toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})}</span>${notificationCenter()}<button class="top-logout" data-a="logout" aria-label="Log out"><i data-lucide="log-out"></i><span>Log out</span></button><span class="avatar">${initials}</span></div>`;
   const items=[["today","Today","layout-dashboard","Now"],["goals","Goals","target","Goals"],["tasks","Tasks","list-checks","Tasks"],["scheduler","Schedule","calendar-clock","Plan"],["habits","Habits","flame","Habits"],["review","Review","notebook-pen","Rev"],["history","Growth","chart-no-axes-combined","Stats"]],mobileNav=window.matchMedia("(max-width: 900px)").matches,mainItems=mobileNav?items.filter(item=>["today","goals","tasks","habits"].includes(item[0])):items,navButton=item=>`<button data-tab="${item[0]}" aria-label="${item[1]}" title="${item[1]}" class="${tab===item[0]?"on":""}"><i data-lucide="${item[2]}" class="nav-icon"></i><span data-short="${item[3]}">${item[1]}</span></button>`,moreTabs=[["scheduler","Schedule","calendar-clock"],["review","Reviews","notebook-pen"],["history","Growth","chart-no-axes-combined"],["profile","Profile","user-round"]],moreActive=moreTabs.some(item=>item[0]===tab);
   document.body.dataset.theme=["forest","ocean","berry","sunset","slate"].includes(S.profile?.theme)?S.profile.theme:"forest";
   document.getElementById("nav").innerHTML=`<div class="brand"><span class="brand-mark"><i data-lucide="sparkles"></i></span><span>Focus</span></div><div class="nav-label">Workspace</div>${mainItems.map(navButton).join("")}${mobileNav?`<button data-a="mobile-more" aria-label="More navigation" aria-controls="mobile-more-panel" aria-expanded="${mobileMoreOpen}" class="${moreActive?"on":""}"><i data-lucide="ellipsis" class="nav-icon"></i><span data-short="More">More</span></button>${mobileMoreOpen?`<div id="mobile-more-panel" class="mobile-more-panel" role="menu"><div class="mobile-more-heading">More</div>${moreTabs.map(item=>`<button type="button" role="menuitem" data-tab="${item[0]}" class="${tab===item[0]?"current":""}"><i data-lucide="${item[2]}" class="nav-icon"></i><span>${item[1]}</span></button>`).join("")}</div>`:""}`:`<div class="sidebar-foot"><button data-tab="profile" aria-label="Profile" title="Profile" class="${tab==="profile"?"on":""}"><i data-lucide="user-round" class="nav-icon"></i><span data-short="Me">Profile</span></button></div>`}`;
@@ -329,9 +340,10 @@ document.addEventListener("click",e=>{
   if(e.target.closest("[data-a=auth-switch]")){authMode=authMode==="login"?"signup":"login";showAuth();return}
   if(e.target.closest("[data-a=auth-reset]")){authMode="reset";showAuth();return}
   if(e.target.closest("[data-a=auth-back]")){authMode="login";showAuth();return}
-  const n=e.target.closest("[data-tab]");if(n){tab=n.dataset.tab;mobileMoreOpen=false;analyticsFocus=null;editingGoal=null;editingTask=null;render();return}
+  const n=e.target.closest("[data-tab]");if(n){tab=n.dataset.tab;mobileMoreOpen=false;notificationOpen=false;analyticsFocus=null;editingGoal=null;editingTask=null;render();return}
   const control=e.target.closest("[data-a]"),a=control?.dataset.a,id=control?.dataset.id;if(!a)return;
   if(a==="mobile-more"){mobileMoreOpen=!mobileMoreOpen;render();return}
+  if(a==="notifications"){notificationOpen=!notificationOpen;render();return}
   if(a==="next-thought"){rotateFocusThought();return}
   if(a==="weekly-preview"){weeklyPreviewOpen=true;render();return}
   if(a==="weekly-preview-close"||(a==="weekly-preview-backdrop"&&e.target===control)){weeklyPreviewOpen=false;render();return}
@@ -358,7 +370,7 @@ document.addEventListener("click",e=>{
   if(a==="delproj"&&confirm("Delete this project?")){S.goals.forEach(g=>g.projects=g.projects.filter(p=>p.id!==id));save();render()}
   if(a==="delhab"&&confirm("Delete this habit?")){S.habits=S.habits.filter(h=>h.id!==id);save();render()}
 });
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&weeklyPreviewOpen){weeklyPreviewOpen=false;render()}else if(e.key==="Escape"&&mobileMoreOpen){mobileMoreOpen=false;render()}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&weeklyPreviewOpen){weeklyPreviewOpen=false;render()}else if(e.key==="Escape"&&mobileMoreOpen){mobileMoreOpen=false;render()}else if(e.key==="Escape"&&notificationOpen){notificationOpen=false;render()}});
 document.addEventListener("submit",e=>{
   e.preventDefault();const f=e.target,k=f.dataset.f,id=f.dataset.id,d=new FormData(f),t=(d.get("t")||"").trim();
   if(k==="auth"){if(!db){showAuth("Supabase is unavailable. Check your connection.");return}(async()=>{const email=String(d.get("email")||""),password=String(d.get("password")||""),submitButton=f.querySelector('button[type="submit"]');if(submitButton)submitButton.disabled=true;try{if(authMode==="update"){const confirmation=String(d.get("passwordConfirm")||"");if(password!==confirmation){showAuth("The passwords do not match.");return}const result=await db.auth.updateUser({password});if(result.error){showAuth(authErrorMessage(result.error,authMode));return}window.history.replaceState({},document.title,window.location.pathname);authMode="login";await loadCloud();return}const result=authMode==="reset"?await db.auth.resetPasswordForEmail(email,{redirectTo:window.location.href}):authMode==="login"?await db.auth.signInWithPassword({email,password}):await db.auth.signUp({email,password,options:{emailRedirectTo:window.location.origin+window.location.pathname}});if(result.error){showAuth(authErrorMessage(result.error,authMode));return}else if(authMode==="reset")showAuth("Check your email for a secure password reset link.");else if(authMode==="signup"&&!result.data.session)showAuth("Check your email to confirm your account, then sign in.")}catch(error){showAuth("Authentication is unavailable. Please try again.")}finally{if(submitButton)submitButton.disabled=false}})();return}

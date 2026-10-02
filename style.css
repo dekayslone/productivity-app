@@ -231,6 +231,8 @@ nav {
 	box-shadow: 8px 0 28px rgba(25, 44, 39, 0.08);
 }
 .brand { display: flex; align-items: center; gap: 10px; color: #f7f1e7; margin: 0 11px 38px; font: 700 1.15rem "Space Grotesk", sans-serif; letter-spacing: 0; }
+.brand > span:last-child { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; line-height: 1.05; }
+.brand > span:last-child::after { color: rgba(232, 246, 238, 0.62); content: "Hop on it"; font: 500 0.58rem "Space Grotesk", sans-serif; line-height: 1.2; }
 .brand-mark { display: grid; width: 25px; height: 25px; place-items: center; color: var(--nav-bg); background: var(--ac); border-radius: 8px; font-size: 1rem; }
 .nav-label { color: rgba(232, 246, 238, 0.5); margin: 0 11px 5px; font-size: 0.63rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
 nav button { position: relative; display: flex; align-items: center; gap: 12px; width: 100%; background: transparent; color: #b9d1c6; border: 1px solid transparent; border-radius: 10px; padding: 11px 12px; font-size: 0.8rem; line-height: 1.3; text-align: left; transition: background 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
@@ -653,6 +655,8 @@ body.auth-mode #app { display: none; }
 .auth-card { width: auto; padding: 42px 38px; background: #142424; color: #edf5f0; }
 .auth-brand { display: flex; align-items: center; gap: 9px; margin-bottom: 28px; font: 700 1.1rem "Space Grotesk", sans-serif; }
 .auth-brand .brand-mark { flex: none; }
+.auth-brand strong { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.auth-brand strong::after { color: #9eb1ab; content: "Hop on it"; font: 500 0.62rem "Space Grotesk", sans-serif; line-height: 1.2; }
 .auth-card h1 { margin: 7px 0 10px; color: #edf5f0; font-size: 2rem; }
 .auth-card p { margin: 0 0 20px; color: #9eb1ab; font-size: 0.83rem; }
 .auth-card label { display: flex; flex-direction: column; gap: 6px; margin-top: 13px; color: #a8b9b3; font-size: 0.73rem; font-weight: 600; }

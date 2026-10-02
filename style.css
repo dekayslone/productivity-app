@@ -517,7 +517,7 @@ body:has(.analytics-page) #topbar { background: #0e1718; border-color: #263637; 
 .analytics-section { margin-top: 10px; }
 .section-count { color: var(--mut); font-size: 0.72rem; }
 .areas-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
-.area-card { animation: area-in 500ms var(--area-delay) both; display: block; width: 100%; padding: 17px; color: var(--tx); background: var(--card); border: 1px solid var(--bd); border-radius: 14px; box-shadow: none; text-align: left; transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
+.area-card { animation: area-in 500ms var(--area-delay) both; display: block; width: 100%; min-width: 0; padding: 17px; color: var(--tx); background: var(--card); border: 1px solid var(--bd); border-radius: 14px; box-shadow: none; text-align: left; transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease; }
 .area-card:hover { background: var(--card); border-color: rgba(112, 197, 163, 0.55); box-shadow: 0 12px 25px rgba(0, 0, 0, 0.2); transform: translateY(-3px); }
 @keyframes area-in { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
 .area-top { display: flex; align-items: center; gap: 9px; }
@@ -526,6 +526,7 @@ body:has(.analytics-page) #topbar { background: #0e1718; border-color: #263637; 
 .area-top strong { flex: 1; min-width: 0; overflow: hidden; font: 600 0.85rem "Space Grotesk", sans-serif; text-overflow: ellipsis; white-space: nowrap; }
 .area-top b { color: var(--ac); font: 600 0.85rem "Space Grotesk", sans-serif; }
 .area-meta { display: flex; justify-content: space-between; gap: 10px; margin: 14px 0 9px; color: var(--mut); font-size: 0.7rem; }
+.area-meta span { min-width: 0; overflow-wrap: anywhere; }
 .area-meta span:last-child { color: var(--ac-deep); }
 .area-progress { height: 5px; overflow: hidden; background: #223636; border-radius: 10px; }
 .area-progress i { display: block; height: 100%; background: var(--ac); border-radius: inherit; transition: width 800ms cubic-bezier(.22, 1, .36, 1); }
@@ -615,10 +616,13 @@ body:has(.analytics-page) #topbar { background: #0e1718; border-color: #263637; 
 	.compose-grid input:first-child, .compose-grid button { grid-column: 1 / -1; }
 }
 @media (max-width: 520px) {
-	.analytics-title-row, .section-heading { align-items: flex-start; }
-	.analytics-controls { align-items: flex-end; flex-direction: column; gap: 8px; }
-	.analytics-controls select { min-width: 135px; max-width: 150px; }
-	.areas-grid { grid-template-columns: 1fr; }
+	.analytics-title-row { flex-direction: column; align-items: stretch; gap: 10px; }
+	.section-heading { align-items: flex-start; }
+	.analytics-controls { width: 100%; align-items: center; flex-direction: row; gap: 8px; }
+	.analytics-controls label { min-width: 0; flex: 1; }
+	.analytics-controls select { width: 100%; min-width: 0; max-width: none; }
+	.areas-grid { grid-template-columns: minmax(0, 1fr); }
+	.area-meta { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
 	.analytics-chart { padding: 16px 12px 10px; }
 	.analytics-chart-wrap { height: 230px; }
 	.detail-summary { grid-template-columns: repeat(2, 1fr); }

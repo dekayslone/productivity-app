@@ -14,7 +14,20 @@ const buildDailySummary=(date=td())=>{const tasks=allTasks().filter(x=>x.t.done&
 const buildWeeklySummary=(date=td())=>{const day=new Date(date+"T12:00");const start=new Date(day);const offset=(day.getDay()+6)%7;start.setDate(day.getDate()-offset);const end=new Date(start);end.setDate(start.getDate()+6);const weeks=[...Array(7)].map((_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);return ld(d)});const days=weeks.map(d=>buildDailySummary(d));const totalCompleted=days.reduce((sum,item)=>sum+item.completedTasks+item.completedHabits,0);return {weekStart:ld(start),weekEnd:ld(end),days,totalCompleted,score:days.length?Math.round(days.reduce((sum,item)=>sum+item.score,0)/days.length):0};};
 const checkpointDay=(date=td())=>{if(!S.meta.lastDay){S.meta.lastDay=date;save();return}if(S.meta.lastDay===date)return;const previous=S.meta.lastDay;S.history[previous]=buildDailySummary(previous);S.weeklyHistory[previous]=buildWeeklySummary(previous);S.meta.lastDay=date;save();};
 async function syncCloud(){if(!db||!authUser)return;try{const{error}=await db.from("focus_state").upsert({user_id:authUser.id,state:S,updated_at:new Date().toISOString()});if(error)toast("Cloud sync failed. Your local data is safe.")}catch(e){toast("Cloud sync unavailable. Your local data is safe.")}}
-async function loadCloud(){if(!db||!authUser)return;try{const{data,error}=await db.from("focus_state").select("state").eq("user_id",authUser.id).maybeSingle();if(error){toast("Could not load cloud data. Using local data.");return}if(data?.state){S=data.state;try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}}else{S={goals:[],habits:[],reviews:[],profile:{name:"Your Name",email:authUser.email||"",role:"Productive builder",theme:"forest",timezone:"UTC",bio:"",notifications:true},meta:{lastDay:null},history:{},weeklyHistory:{}};try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}await syncCloud()}S.meta=S.meta||{lastDay:null};S.history=S.history||{};S.weeklyHistory=S.weeklyHistory||{};cloudHydrated=true;document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render()}catch(e){toast("Could not load cloud data. Using local data.")}}
+async function loadCloud(){
+  if(!db||!authUser)return;
+  try{
+    const{data,error}=await db.from("focus_state").select("state").eq("user_id",authUser.id).maybeSingle();
+    if(error){toast("Could not load cloud data. Using local data.");return}
+    if(data?.state)S=data.state;
+    else S={goals:[],habits:[],reviews:[],profile:{name:"Your Name",email:authUser.email||"",role:"Productive builder",theme:"forest",timezone:"UTC",bio:"",notifications:true},meta:{lastDay:null},history:{},weeklyHistory:{},gamification:emptyRewards()};
+    S.meta=S.meta||{lastDay:null};S.history=S.history||{};S.weeklyHistory=S.weeklyHistory||{};
+    updateRewards();
+    try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}
+    cloudHydrated=true;await syncCloud();
+    document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();
+  }catch(e){toast("Could not load cloud data. Using local data.")}
+}
 function showAuth(message=""){document.body.classList.add("auth-mode");const reset=authMode==="reset",update=authMode==="update",login=authMode==="login",root=document.getElementById("auth");root.innerHTML=`<div class="auth-shell"><div class="auth-layout"><form class="auth-card" data-f="auth"><div class="auth-brand"><span class="brand-mark"><i data-lucide="sparkles"></i></span><strong>Focus</strong></div><span class="eyebrow">${update?"SECURE RECOVERY":reset?"PASSWORD RESET":login?"WELCOME BACK":"CREATE YOUR ACCOUNT"}</span><h1>${update?"Choose a new password.":reset?"Reset your password.":login?"Return to your rhythm.":"Start your focus system."}</h1><p>${update?"Create a new password for your Focus account.":reset?"Enter your email and we’ll send you a secure reset link.":login?"Sign in to sync your goals, tasks, habits, and reviews.":"Create an account to keep your progress safe across devices."}</p>${message?`<div class="auth-message">${esc(message)}</div>`:""}${reset?`<label>Email<input type="email" name="email" value="you@example.com" required autocomplete="email"></label>`:""}${update?`<label>New password<input type="password" name="password" required minlength="6" autocomplete="new-password"></label><label>Confirm password<input type="password" name="passwordConfirm" required minlength="6" autocomplete="new-password"></label>`:reset?"":`<label>Email<input type="email" name="email" value="you@example.com" required autocomplete="email"></label><label>Password<input type="password" name="password" required minlength="6" autocomplete="${login?"current-password":"new-password"}"></label>`}<button type="submit">${update?"Save new password":reset?"Send reset link":login?"Sign in":"Create account"}</button>${update?"":reset?`<button type="button" class="ghost auth-switch" data-a="auth-back">Back to sign in</button>`:`${login?`<button type="button" class="auth-forgot" data-a="auth-reset">Forgot your password?</button>`:""}<button type="button" class="ghost auth-switch" data-a="auth-switch">${login?"Create a new account":"I already have an account"}</button>`}</form><aside class="auth-aside"><span class="auth-quote-mark">“</span><blockquote>Start with the task that matters most, and let focused action create momentum.</blockquote><div class="auth-quote-source"><span class="auth-avatar">F</span><span><strong>Focus system</strong><small>Built for deliberate progress</small></span></div></aside></div></div>`;if(window.lucide)lucide.createIcons()}
 async function initAuth(){if(!db){toast("Supabase is unavailable. Using local data.");return}try{const{data}=await db.auth.getSession();if(data.session){authUser=data.session.user;if(window.location.hash.includes("type=recovery")){authMode="update";showAuth()}else await loadCloud()}else showAuth();db.auth.onAuthStateChange(async(event,session)=>{if(session){authUser=session.user;if(event==="PASSWORD_RECOVERY"){authMode="update";showAuth()}else if(authMode!=="update")await loadCloud()}else{authUser=null;cloudHydrated=false;document.body.classList.add("auth-mode");showAuth()}})}catch(e){toast("Could not connect to Supabase. Your local data is safe.")}}
 const authErrorMessage=(error,mode)=>{const msg=String(error?.message||error||"").trim();if(!msg)return "Authentication is unavailable. Please try again.";const lower=msg.toLowerCase();if(lower.includes("rate limit")||lower.includes("too many requests")||lower.includes("email rate limit exceeded")){return mode==="reset"?"Too many reset emails were sent. Please wait a few minutes before requesting another one.":"Too many attempts were made. Please wait a few minutes and try again."}if(lower.includes("invalid login credentials")||lower.includes("user not found")){return "Incorrect email or password."}if(lower.includes("passwords do not match")){return "The passwords do not match."}if(lower.includes("already registered")||lower.includes("already exists")){return "An account already exists for this email."}return msg;};
@@ -37,6 +50,42 @@ function streak(h){let d=td();if(!ok(h,d))d=addDays(d,-1);let n=0;while(ok(h,d))
 const wkStart=()=>addDays(td(),-((new Date().getDay()+6)%7));
 const sumR=(h,a,b)=>{let n=0,d=a;while(d<=b){n+=h.log[d]||0;d=addDays(d,1)}return n};
 const weekCount=h=>sumR(h,wkStart(),addDays(wkStart(),6));
+const emptyRewards=()=>({badges:[],weeklyChallenge:{type:"tasks",target:5,habitId:""},completedChallengeWeeks:[],personalBestTasks:0});
+function initRewards(){
+  if(!S.gamification||typeof S.gamification!=="object")S.gamification=emptyRewards();
+  const game=S.gamification;game.badges=Array.isArray(game.badges)?game.badges:[];game.completedChallengeWeeks=Array.isArray(game.completedChallengeWeeks)?game.completedChallengeWeeks:[];
+  const saved=game.weeklyChallenge||{},dailyHabits=S.habits.filter(habit=>habit.kind!=="weekly");game.weeklyChallenge={type:saved.type==="habit"?"habit":"tasks",target:Math.max(1,Math.min(saved.type==="habit"?7:40,Number(saved.target)||5)),habitId:dailyHabits.some(habit=>habit.id===saved.habitId)?saved.habitId:(dailyHabits[0]?.id||"")};
+  game.personalBestTasks=Math.max(0,Number(game.personalBestTasks)||0);return game;
+}
+function weeklyChallengeProgress(){
+  const game=initRewards(),challenge=game.weeklyChallenge,start=wkStart(),today=td(),days=[...Array(7)].map((_,index)=>addDays(start,index));
+  if(challenge.type==="habit"){
+    const habit=S.habits.find(item=>item.kind!=="weekly"&&item.id===challenge.habitId),progress=habit?days.filter(day=>day<=today&&(habit.log?.[day]||0)>=(habit.target||1)).length:0;
+    return{type:"habit",habit,start,target:challenge.target,progress,complete:game.completedChallengeWeeks.includes(start)||progress>=challenge.target};
+  }
+  const planned=allTasks().filter(({t})=>t.due&&t.due>=start&&t.due<=addDays(start,6));
+  const progress=planned.filter(({t})=>t.done&&t.doneOn>=start&&t.doneOn<=today).length;
+  return{type:"tasks",start,target:challenge.target,progress,complete:game.completedChallengeWeeks.includes(start)||progress>=challenge.target};
+}
+function updateRewards(){
+  const game=initRewards(),earned=[];
+  const award=(id,title,description,earnedOn=td())=>{if(game.badges.some(badge=>badge.id===id))return;game.badges.push({id,title,description,earnedOn});earned.push(title)};
+  for(const goal of S.goals){
+    const tasks=(goal.projects||[]).flatMap(project=>project.tasks||[]);
+    if(tasks.length&&tasks.every(task=>task.done))award("first-goal-completed","First Goal Completed",`Completed ${goal.title}.`,tasks.map(task=>task.doneOn).filter(Boolean).sort().at(-1)||td());
+    for(const project of goal.projects||[])if(project.tasks?.length&&project.tasks.every(task=>task.done))award("first-project-finished","Finished a Project",`Finished ${project.title}.`,project.tasks.map(task=>task.doneOn).filter(Boolean).sort().at(-1)||td());
+  }
+  for(const habit of S.habits){
+    const starts=new Set(Object.keys(habit.log||{}).filter(date=>/^\d{4}-\d{2}-\d{2}$/.test(date)).map(date=>addDays(date,-((new Date(`${date}T12:00`).getDay()+6)%7))));
+    for(const start of starts){const days=[...Array(7)].map((_,index)=>addDays(start,index)),met=days.filter(day=>(habit.log?.[day]||0)>=(habit.target||1)).length;if(met>=4)award(`habit-four-days-${habit.id}-${start}`,`${habit.name}: 4 Days This Week`,`Met this habit on ${met} days during the week of ${start}.`,addDays(start,6))}
+  }
+  const challenge=weeklyChallengeProgress(),isNewChallengeComplete=challenge.progress>=challenge.target&&!game.completedChallengeWeeks.includes(challenge.start);
+  if(isNewChallengeComplete)game.completedChallengeWeeks.push(challenge.start);
+  const start=wkStart(),today=td(),completedThisWeek=allTasks().filter(({t})=>t.done&&t.doneOn>=start&&t.doneOn<=today).length,newPersonalBest=completedThisWeek>game.personalBestTasks;
+  if(newPersonalBest)game.personalBestTasks=completedThisWeek;
+  return{earned,newPersonalBest,isNewChallengeComplete};
+}
+function rewardToast(rewards){if(rewards?.earned.length)toast(`Badge earned: ${rewards.earned[0]}`);else if(rewards?.isNewChallengeComplete)toast("Weekly challenge complete. Nice work!");else if(rewards?.newPersonalBest)toast(`New personal best: ${S.gamification.personalBestTasks} tasks this week!`)}
 const monthSum=h=>sumR(h,mon()+"-01",td());
 const bar=p=>`<div class="bar"><i style="width:${p}%"></i></div>`;
 const catSel=`<select name="cat">${CATS.map(c=>`<option>${c}</option>`).join("")}</select>`;
@@ -95,6 +144,10 @@ function revealOnScroll(){
   revealVisible();
 }
 
+function weeklyChallengeCard(){
+  const challenge=weeklyChallengeProgress(),target=challenge.target,progress=Math.min(challenge.progress,target),title=challenge.type==="tasks"?`Complete ${target} planned tasks`:`Meet ${esc(challenge.habit?.name||"a habit")} on ${target} days`,detail=challenge.type==="tasks"?"Tasks due this week":"Daily target days this week";
+  return `<section class="challenge-card"><div class="challenge-card-head"><div><span class="eyebrow">WEEKLY CHALLENGE</span><h2>${title}</h2></div><span class="challenge-state ${challenge.complete?"complete":""}">${challenge.complete?"Complete":"In progress"}</span></div><div class="challenge-meter"><i style="width:${target?Math.round(progress/target*100):0}%"></i></div><div class="challenge-card-foot"><span><strong>${progress}/${target}</strong> ${detail}</span><button type="button" class="ghost" data-tab="profile">Change</button></div></section>`;
+}
 function today(){
   const t=td(),all=allTasks().filter(x=>!x.t.done);
   const doneToday=allTasks().filter(x=>x.t.doneOn===t).length;
@@ -103,6 +156,7 @@ function today(){
   <div class="stats"><div class="card kpi"><div class="kpi-icon"><i data-lucide="list-checks"></i></div><div class="big">${all.length}</div><div class="mut">open tasks</div></div>
   <div class="card kpi"><div class="kpi-icon"><i data-lucide="check-circle-2"></i></div><div class="big">${doneToday}</div><div class="mut">done today</div></div>
   <div class="card kpi"><div class="kpi-icon"><i data-lucide="repeat-2"></i></div><div class="big">${hd}/${S.habits.filter(h=>h.kind!=="weekly").length}</div><div class="mut">habits</div></div></div>
+  ${weeklyChallengeCard()}
   ${momentumChart()}
   ${core(t)}<h2>Tasks</h2>`;
   h+=all.length?all.sort((a,b)=>(a.t.due||"9999").localeCompare(b.t.due||"9999")).map(x=>taskRow(x)).join(""):`<div class="card mut">No open tasks. ${S.goals.length?"Add a task from the Tasks page.":"Start by adding a goal in the Goals tab."}</div>`;
@@ -189,6 +243,7 @@ function weeklyEmailPreview(){
 function profilePage(){
   const p=S.profile||{name:"Your Name",email:"you@example.com",role:"Productive builder",theme:"forest",timezone:"UTC",bio:"Build deliberate momentum every day.",notifications:true};
   const email=p.emailPreferences||{dailyReminder:p.notifications!==false,dailyTime:"08:00",weeklyMetrics:false,weeklyDay:1,monthlyWins:false,monthlyDay:1};
+  const game=initRewards(),challenge=game.weeklyChallenge,challengeProgress=weeklyChallengeProgress(),badges=game.badges.slice().sort((a,b)=>b.earnedOn.localeCompare(a.earnedOn));
   const timezone=({"GMT+1":"Africa/Lagos","GMT+2":"Europe/Paris","GMT+5:30":"Asia/Kolkata"})[p.timezone]||p.timezone||"UTC";
   const initials=(p.name||"YN").split(/\s+/).filter(Boolean).slice(0,2).map(word=>word[0]).join("").toUpperCase()||"YN";
   const themes=[{id:"forest",label:"Forest",color:"#267b65"},{id:"ocean",label:"Ocean",color:"#3578a8"},{id:"berry",label:"Berry",color:"#a84b70"},{id:"sunset",label:"Sunset",color:"#c36535"},{id:"slate",label:"Slate",color:"#60747d"}];
@@ -206,6 +261,7 @@ function profilePage(){
   <button type="submit">Save profile and email schedule</button></section></form></div>
   <div class="card"><div class="section-heading"><div><span class="eyebrow">SETTINGS</span><h2>Workspace</h2></div></div><div class="mini-stat-list"><div class="mini-stat"><span>Last sign-in</span><strong>${authUser?authUser.email||"Signed in":"Local only"}</strong></div><div class="mini-stat"><span>Data mode</span><strong>${authUser&&cloudHydrated?"Synced":"Local safe"}</strong></div></div><form class="settings-form" data-f="profile-theme"><fieldset class="theme-picker"><legend>Theme color</legend><div class="theme-options">${themes.map(theme=>`<label class="theme-choice"><input type="radio" name="theme" value="${theme.id}" ${p.theme===theme.id?"checked":""}><span class="theme-swatch" style="--swatch:${theme.color}"></span><span>${theme.label}</span></label>`).join("")}</div><button type="submit" class="ghost">Apply theme</button></fieldset></form></div></div></div>`;
   if(weeklyPreviewOpen)h+=`<div class="weekly-preview-backdrop" data-a="weekly-preview-backdrop"><section class="weekly-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="weekly-preview-title"><header class="weekly-preview-header"><div><h2 id="weekly-preview-title">Weekly email preview</h2><p>Previous full week · uses your saved data · does not send</p><strong id="weekly-preview-subject"></strong></div><button type="button" class="ghost" data-a="weekly-preview-close" aria-label="Close preview"><i data-lucide="x"></i></button></header><iframe id="weekly-email-preview" title="Weekly email content" sandbox></iframe></section></div>`;
+  h+=`<div class="rewards-grid"><section class="card challenge-settings-card"><div class="section-heading"><div><span class="eyebrow">MAKE IT YOURS</span><h2>Weekly challenge</h2></div><i data-lucide="target"></i></div><p>Choose a personal target. Missing a week never removes a badge or record.</p><form class="challenge-form" data-f="challenge"><label>Challenge<select id="challengeType" name="challengeType"><option value="tasks" ${challenge.type==="tasks"?"selected":""}>Complete planned tasks</option><option value="habit" ${challenge.type==="habit"?"selected":""}>Meet a habit goal</option></select></label><label>Target<input id="challengeTarget" type="number" name="target" min="1" max="${challenge.type==="habit"?7:40}" value="${challenge.target}" required></label><label id="challengeHabitWrap" ${challenge.type==="habit"?"":"hidden"}>Daily habit<select name="habitId" ${S.habits.some(habit=>habit.kind!=="weekly")?"":"disabled"}>${S.habits.filter(habit=>habit.kind!=="weekly").map(habit=>`<option value="${esc(habit.id)}" ${habit.id===challenge.habitId?"selected":""}>${esc(habit.name)}</option>`).join("")||`<option value="">Add a daily habit first</option>`}</select></label><button type="submit">Save challenge</button></form><div class="challenge-profile-progress"><span>This week</span><strong>${Math.min(challengeProgress.progress,challengeProgress.target)}/${challengeProgress.target}</strong></div><div class="personal-best"><i data-lucide="trophy"></i><span>Personal best</span><strong>${game.personalBestTasks} tasks in one week</strong></div></section><section class="card badges-card"><div class="section-heading"><div><span class="eyebrow">YOUR MILESTONES</span><h2>Badges</h2></div><span class="badge-total">${badges.length}</span></div><div class="badge-list">${badges.map(badge=>`<article class="badge-item"><span class="badge-mark"><i data-lucide="award"></i></span><div><strong>${esc(badge.title)}</strong><p>${esc(badge.description)}</p><time datetime="${esc(badge.earnedOn)}">Earned ${new Date(`${badge.earnedOn}T12:00`).toLocaleDateString()}</time></div></article>`).join("")||`<div class="badges-empty"><i data-lucide="sparkles"></i><strong>Your first badge is waiting.</strong><span>Finish a project or goal to earn one.</span></div>`}</div></section></div>`;
   return h}
 
 function history(){
@@ -305,10 +361,10 @@ document.addEventListener("click",e=>{
   if(a==="subtask"){const task=allTasks().find(x=>x.t.id===id)?.t,sub=task?.subtasks?.find(s=>s.id===control.dataset.subid);if(sub){sub.done=control.checked;save();render()}return}
   if(a==="delsubtask"&&confirm("Delete this subtask?")){const task=allTasks().find(x=>x.t.id===id)?.t;if(task)task.subtasks=(task.subtasks||[]).filter(s=>s.id!==control.dataset.subid);save();render();return}
   if(a==="task"){const x=allTasks().find(y=>y.t.id===id);x.t.done=e.target.checked;x.t.doneOn=x.t.done?td():null;
-    save();if(x.t.done){if(prog(x.g)===100)toast("Goal complete: "+x.g.title+". Well done.");else if(x.t.ms)toast("Milestone reached.")}render()}
+    const rewards=x.t.done?updateRewards():null;save();if(rewards&&(rewards.earned.length||rewards.isNewChallengeComplete||rewards.newPersonalBest))rewardToast(rewards);else if(x.t.done){if(prog(x.g)===100)toast("Goal complete: "+x.g.title+". Well done.");else if(x.t.ms)toast("Milestone reached.")}render()}
   if(a==="deltask"&&confirm("Delete this task?")){S.goals.forEach(g=>g.projects.forEach(p=>p.tasks=p.tasks.filter(t=>t.id!==id)));save();render()}
-  if(a==="hab"){const h=S.habits.find(y=>y.id===id);if(e.target.checked)h.log[td()]=1;else delete h.log[td()];save();render()}
-  if(a==="sess"){const h=S.habits.find(y=>y.id===id);h.log[td()]=(h.log[td()]||0)+1;save();toast(weekCount(h)>=h.target?"Weekly target hit!":"Session logged.");render()}
+  if(a==="hab"){const h=S.habits.find(y=>y.id===id);if(e.target.checked)h.log[td()]=1;else delete h.log[td()];const rewards=e.target.checked?updateRewards():null;save();if(rewards&&(rewards.earned.length||rewards.isNewChallengeComplete||rewards.newPersonalBest))rewardToast(rewards);render()}
+  if(a==="sess"){const h=S.habits.find(y=>y.id===id);h.log[td()]=(h.log[td()]||0)+1;const rewards=updateRewards();save();if(rewards.earned.length||rewards.isNewChallengeComplete||rewards.newPersonalBest)rewardToast(rewards);else toast(weekCount(h)>=h.target?"Weekly target hit!":"Session logged.");render()}
   if(a==="desess"){const h=S.habits.find(y=>y.id===id),count=h?.log[td()]||0;if(h&&count>0){if(count===1)delete h.log[td()];else h.log[td()]=count-1;save();toast("Today's session removed.");render()}}
   if(a==="delgoal"&&confirm("Delete this goal?")){S.goals=S.goals.filter(g=>g.id!==id);save();render()}
   if(a==="delproj"&&confirm("Delete this project?")){S.goals.forEach(g=>g.projects=g.projects.filter(p=>p.id!==id));save();render()}
@@ -318,6 +374,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&weeklyPreviewOpen){
 document.addEventListener("submit",e=>{
   e.preventDefault();const f=e.target,k=f.dataset.f,id=f.dataset.id,d=new FormData(f),t=(d.get("t")||"").trim();
   if(k==="auth"){if(!db){showAuth("Supabase is unavailable. Check your connection.");return}(async()=>{const email=String(d.get("email")||""),password=String(d.get("password")||""),submitButton=f.querySelector('button[type="submit"]');if(submitButton)submitButton.disabled=true;try{if(authMode==="update"){const confirmation=String(d.get("passwordConfirm")||"");if(password!==confirmation){showAuth("The passwords do not match.");return}const result=await db.auth.updateUser({password});if(result.error){showAuth(authErrorMessage(result.error,authMode));return}window.history.replaceState({},document.title,window.location.pathname);authMode="login";await loadCloud();return}const result=authMode==="reset"?await db.auth.resetPasswordForEmail(email,{redirectTo:window.location.href}):authMode==="login"?await db.auth.signInWithPassword({email,password}):await db.auth.signUp({email,password,options:{emailRedirectTo:window.location.origin+window.location.pathname}});if(result.error){showAuth(authErrorMessage(result.error,authMode));return}else if(authMode==="reset")showAuth("Check your email for a secure password reset link.");else if(authMode==="signup"&&!result.data.session)showAuth("Check your email to confirm your account, then sign in.")}catch(error){showAuth("Authentication is unavailable. Please try again.")}finally{if(submitButton)submitButton.disabled=false}})();return}
+  if(k==="challenge"){const type=d.get("challengeType")==="habit"?"habit":"tasks",dailyHabits=S.habits.filter(habit=>habit.kind!=="weekly"),target=Math.max(1,Math.min(type==="habit"?7:40,Number(d.get("target"))||5)),habitId=String(d.get("habitId")||dailyHabits[0]?.id||"");if(type==="habit"&&!dailyHabits.some(habit=>habit.id===habitId)){toast("Add a daily habit before choosing a habit challenge.");return}initRewards().weeklyChallenge={type,target,habitId};const rewards=updateRewards();save();render();if(rewards.isNewChallengeComplete)rewardToast(rewards);return}
   if(k==="profile-theme"){S.profile=S.profile||{};S.profile.theme=String(d.get("theme")||S.profile.theme||"forest");save();render();return}
   if(k==="profile"){S.profile=S.profile||{};S.profile.name=String(d.get("name")||S.profile.name||"Your Name").trim();S.profile.email=String(d.get("email")||S.profile.email||"").trim();S.profile.role=String(d.get("role")||S.profile.role||"Productive builder").trim();S.profile.theme=String(d.get("theme")||S.profile.theme||"forest");S.profile.timezone=String(d.get("timezone")||S.profile.timezone||"UTC");S.profile.bio=String(d.get("bio")||S.profile.bio||"").trim();S.profile.emailPreferences={dailyReminder:!!d.get("dailyReminder"),dailyTime:String(d.get("dailyTime")||"08:00"),weeklyMetrics:!!d.get("weeklyMetrics"),weeklyDay:Math.min(7,Math.max(1,Number(d.get("weeklyDay"))||1)),monthlyWins:!!d.get("monthlyWins"),monthlyDay:Math.min(28,Math.max(1,Number(d.get("monthlyDay"))||1))};S.profile.notifications=S.profile.emailPreferences.dailyReminder;save();render();return}
   if(k==="goal")S.goals.push({id:uid(),title:t,cat:d.get("cat"),month:gm,pri:S.goals.filter(x=>x.month===gm).length+1,projects:[]});
@@ -344,9 +401,9 @@ function core(t){
  h+=`<h2>Daily core system</h2>`+(dly.map(x=>hrow(x,t)).join("")||'<div class="card mut">No daily habits yet.</div>');
  wk.forEach(x=>{const c=weekCount(x),todaySessions=x.log[td()]||0,p=Math.min(100,Math.round(100*c/x.target));h+=`<div class="card"><div class="row"><div class="g">${esc(x.name)}<div class="mut">${c}/${x.target} this week${todaySessions?` · ${todaySessions} today`:""}</div></div><div class="session-actions"><button data-a="sess" data-id="${x.id}"><i data-lucide="plus"></i> Session</button>${todaySessions?`<button class="ghost" data-a="desess" data-id="${x.id}" aria-label="Remove today's session"><i data-lucide="minus"></i></button>`:""}</div></div>${bar(p)}</div>`});
  return h}
-document.addEventListener("change",e=>{if(e.target.dataset.a!=="habval")return;
+document.addEventListener("change",e=>{if(e.target.id==="challengeType"){const isHabit=e.target.value==="habit",wrap=document.getElementById("challengeHabitWrap"),target=document.getElementById("challengeTarget");if(wrap)wrap.hidden=!isHabit;if(target){target.max=isHabit?7:40;if(Number(target.value)>Number(target.max))target.value=target.max}return}if(e.target.dataset.a!=="habval")return;
  const h=S.habits.find(y=>y.id===e.target.dataset.id),v=Math.max(0,+e.target.value||0);
- if(v)h.log[td()]=v;else delete h.log[td()];save();if(ok(h,td()))toast(h.name.split(":")[0]+" done.");render()});
+ if(v)h.log[td()]=v;else delete h.log[td()];const complete=ok(h,td()),rewards=complete?updateRewards():null;save();if(rewards&&(rewards.earned.length||rewards.isNewChallengeComplete||rewards.newPersonalBest))rewardToast(rewards);else if(complete)toast(h.name.split(":")[0]+" done.");render()});
 
 checkpointDay();
 render();

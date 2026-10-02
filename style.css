@@ -290,6 +290,14 @@ h3 { margin: 4px 0 0; font: 600 1rem "Space Grotesk", sans-serif; }
 .settings-form .email-select { display: grid; gap: 5px; color: var(--mut); font-size: 0.65rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
 .settings-form .email-select input, .settings-form .email-select select { padding: 8px 9px; border-radius: 9px; }
 .email-setting p { grid-column: 1 / -1; margin: 0; color: var(--mut); font-size: 0.72rem; }
+.weekly-preview-trigger { justify-self: start; display: inline-flex; align-items: center; gap: 8px; }
+.weekly-preview-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(18, 29, 27, 0.62); }
+.weekly-preview-dialog { display: flex; width: min(760px, 100%); max-height: min(92dvh, 920px); flex-direction: column; overflow: hidden; border: 1px solid var(--bd); border-radius: 8px; background: var(--card); box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24); }
+.weekly-preview-header { display: flex; flex: none; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--bd); }
+.weekly-preview-header h2 { margin: 0; font: 600 1.05rem "Space Grotesk", sans-serif; }
+.weekly-preview-header p { margin: 4px 0; color: var(--mut); font-size: 0.76rem; }
+#weekly-preview-subject { display: block; color: var(--tx); font-size: 0.76rem; overflow-wrap: anywhere; }
+#weekly-email-preview { display: block; width: 100%; min-height: 0; height: min(76dvh, 780px); border: 0; background: #f3f7f4; }
 
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .section-heading h2 { margin: 4px 0 0; font: 600 1.1rem "Space Grotesk", sans-serif; letter-spacing: 0; }
@@ -321,6 +329,10 @@ h3 { margin: 4px 0 0; font: 600 1rem "Space Grotesk", sans-serif; }
 	.theme-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.email-setting { grid-template-columns: 1fr; }
 	.email-setting p { grid-column: auto; }
+	.weekly-preview-backdrop { padding: 8px; }
+	.weekly-preview-dialog { max-height: 96dvh; }
+	.weekly-preview-header { gap: 8px; padding: 13px 14px; }
+	#weekly-email-preview { height: 76dvh; }
 	form.add > input, form.add > select { flex: 1 1 100%; }
 	form.add > button { margin-left: auto; }
 }

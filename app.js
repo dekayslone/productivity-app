@@ -7,7 +7,7 @@ S.profile=S.profile||{name:"Your Name",email:"you@example.com",role:"Productive 
 S.meta=S.meta||{lastDay:null};
 S.history=S.history||{};
 S.weeklyHistory=S.weeklyHistory||{};
-let tab="today",gm=null,mem={},analyticsFocus=null,editingGoal=null,editingTask=null,schedulerDate=null,analyticsMonth=null,authUser=null,cloudHydrated=false,authMode="login";
+let tab="today",gm=null,mem={},analyticsFocus=null,editingGoal=null,editingTask=null,schedulerDate=null,analyticsMonth=null,authUser=null,cloudHydrated=false,authMode="login",weeklyPreviewOpen=false;
 const save=()=>{try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}if(authUser&&cloudHydrated)syncCloud()};
 if(!S.meta.lastDay || !S.history || !S.weeklyHistory){S.meta=S.meta||{lastDay:null};S.history=S.history||{};S.weeklyHistory=S.weeklyHistory||{};save();}
 const buildDailySummary=(date=td())=>{const tasks=allTasks().filter(x=>x.t.done&&x.t.doneOn===date),habitEntries=S.habits.map(h=>({id:h.id,name:h.name,target:h.target||1,value: h.log[date]||0,done:(h.kind==="weekly"?(h.log[date]||0)>0:(h.log[date]||0)>=((h.target||1)))})).filter(h=>h.done||h.value>0),completedHabits=habitEntries.filter(h=>h.done).length,totalTasks=tasks.length,totalHabits=habitEntries.length,score=totalTasks+totalHabits?Math.round((completedHabits+totalTasks)/(totalTasks+totalHabits||1)*100):0;return {date,tasks:tasks.map(x=>({id:x.t.id,title:x.t.t,goal:x.g.title,project:x.p.title,doneOn:x.t.doneOn,category:x.t.cat||"General"})),habits:habitEntries,completedTasks:totalTasks,completedHabits,score,totalActivities:totalTasks+totalHabits};};
@@ -165,6 +165,27 @@ function review(){
   h+=`<h2>Past reviews</h2>`+(S.reviews.slice().reverse().map(r=>`<div class="card"><div class="mut">${r.type==="week"?"Week":"Month"} · ${r.date}</div><div class="mut">${esc(r.auto)}</div><p><b>Wins:</b> ${esc(r.w)}</p>${r.c?`<p><b>Obstacles:</b> ${esc(r.c)}</p>`:""}${r.n?`<p><b>Next:</b> ${esc(r.n)}</p>`:""}</div>`).join("")||`<div class="card mut">No reviews saved yet.</div>`);
   return h}
 
+function weeklyEmailPreview(){
+  const timezone=({"GMT+1":"Africa/Lagos","GMT+2":"Europe/Paris","GMT+5:30":"Asia/Kolkata"})[S.profile?.timezone||""]||S.profile?.timezone||"UTC";
+  let parts;
+  try{parts=new Intl.DateTimeFormat("en-US",{timeZone:timezone,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date())}
+  catch{parts=new Intl.DateTimeFormat("en-US",{timeZone:"UTC",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date())}
+  const part=type=>parts.find(value=>value.type===type)?.value||"",today=`${part("year")}-${part("month")}-${part("day")}`;
+  const offset=(new Date(`${today}T12:00:00`).getDay()+6)%7,start=addDays(addDays(today,-offset),-7),end=addDays(start,6),days=[...Array(7)].map((_,index)=>addDays(start,index));
+  const weekTasks=allTasks().filter(({t})=>t.due&&t.due>=start&&t.due<=end);
+  const completed=weekTasks.filter(({t})=>t.done&&(!t.doneOn||t.doneOn<=end));
+  const completionRate=weekTasks.length?Math.round(completed.length/weekTasks.length*100):0;
+  const deadlinesMet=weekTasks.filter(({t})=>t.done&&t.doneOn&&t.doneOn<=t.due).length;
+  const weekGoals=new Set(weekTasks.map(({g})=>g.id||g.title));
+  const progressedGoals=new Set(completed.map(({g})=>g.id||g.title)).size;
+  const habits=S.habits.map(habit=>habit.kind==="weekly"
+    ?`<li>${esc(habit.name)}: ${days.reduce((sum,day)=>sum+(habit.log?.[day]||0),0)}/${habit.target||1} sessions</li>`
+    :`<li>${esc(habit.name)}: ${days.filter(day=>(habit.log?.[day]||0)>=(habit.target||1)).length}/7 days</li>`);
+  const sections=[["Tasks completed",`<strong>${completed.length}/${weekTasks.length}</strong>`],["Completion rate",`<strong>${completionRate}%</strong>`],["Goals progressed",`<strong>${progressedGoals}/${weekGoals.size}</strong>`],["Deadlines met",`<strong>${deadlinesMet}/${weekTasks.length}</strong>`],["Consistency",habits.length?`<ul>${habits.join("")}</ul>`:"<p>No habits tracked this week.</p>"]];
+  const dateFormat={month:"long",day:"numeric",year:"numeric",timeZone:"UTC"},formatDate=date=>new Date(`${date}T12:00:00.000Z`).toLocaleDateString("en",dateFormat);
+  return{subject:`Your weekly Focus progress · ${formatDate(start)}`,html:`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#f3f7f4;color:#20312b;font:16px/1.6 Arial,sans-serif}main{max-width:600px;margin:24px auto;padding:32px;background:#fff;border:1px solid #dce8e2;border-radius:12px}.brand{color:#267b65;font-weight:bold;font-size:12px;letter-spacing:2px}h1{margin:12px 0 4px;font-size:27px}p{color:#687b72}section{padding:16px 0;border-top:1px solid #e5eee8}h2{margin:0 0 8px;font-size:17px}ul{margin:0;padding-left:20px}@media(max-width:640px){main{margin:8px;padding:24px 18px;border-radius:8px}}</style></head><body><main><div class="brand">FOCUS</div><h1>Your week in Focus</h1><p>${formatDate(start)} – ${formatDate(end)}</p>${sections.map(([heading,content])=>`<section><h2>${heading}</h2>${content}</section>`).join("")}</main></body></html>`};
+}
+
 function profilePage(){
   const p=S.profile||{name:"Your Name",email:"you@example.com",role:"Productive builder",theme:"forest",timezone:"UTC",bio:"Build deliberate momentum every day.",notifications:true};
   const email=p.emailPreferences||{dailyReminder:p.notifications!==false,dailyTime:"08:00",weeklyMetrics:false,weeklyDay:1,monthlyWins:false,monthlyDay:1};
@@ -172,7 +193,7 @@ function profilePage(){
   const initials=(p.name||"YN").split(/\s+/).filter(Boolean).slice(0,2).map(word=>word[0]).join("").toUpperCase()||"YN";
   const themes=[{id:"forest",label:"Forest",color:"#267b65"},{id:"ocean",label:"Ocean",color:"#3578a8"},{id:"berry",label:"Berry",color:"#a84b70"},{id:"sunset",label:"Sunset",color:"#c36535"},{id:"slate",label:"Slate",color:"#60747d"}];
   const timezones=[['UTC','UTC'],['Africa/Lagos','Lagos (UTC+1)'],['Europe/Paris','Paris (UTC+1/+2)'],['Europe/London','London (UTC/+1)'],['America/New_York','New York'],['America/Chicago','Chicago'],['America/Los_Angeles','Los Angeles'],['Asia/Kolkata','India (UTC+5:30)'],['Asia/Tokyo','Tokyo'],['Australia/Sydney','Sydney']];
-  return `<div class="profile-page"><div class="profile-header card"><div class="profile-avatar">${esc(initials)}</div><div class="profile-heading"><span class="eyebrow">PROFILE</span><h1>${esc(p.name)}</h1><div class="mut">${esc(p.role)}</div></div></div>
+  let h=`<div class="profile-page"><div class="profile-header card"><div class="profile-avatar">${esc(initials)}</div><div class="profile-heading"><span class="eyebrow">PROFILE</span><h1>${esc(p.name)}</h1><div class="mut">${esc(p.role)}</div></div></div>
   <div class="settings-grid"><div class="card"><div class="section-heading"><div><span class="eyebrow">PERSONAL</span><h2>Profile</h2></div></div><form class="settings-form" data-f="profile">
   <div class="two-col"><label>Full name<input type="text" name="name" value="${esc(p.name)}" required></label><label>Contact email<input type="email" name="email" value="${esc(p.email)}" required></label></div>
   <div class="two-col"><label>Role<input type="text" name="role" value="${esc(p.role)}" placeholder="Productive builder"></label><label>Timezone<select name="timezone">${timezones.map(([value,label])=>`<option value="${value}" ${timezone===value?"selected":""}>${label}</option>`).join("")}</select></label></div>
@@ -180,10 +201,12 @@ function profilePage(){
   <section class="email-preferences"><div class="section-heading"><div><span class="eyebrow">EMAIL UPDATES</span><h2>Scheduled emails</h2></div></div><p class="email-recipient">Sent to your sign-in address: <strong>${esc(authUser?.email||"Sign in to enable email delivery")}</strong></p>
   <div class="email-setting"><label class="toggle-row"><input type="checkbox" name="dailyReminder" ${email.dailyReminder?"checked":""}> Daily task reminder</label><label class="email-select">Send at<input type="time" name="dailyTime" value="${esc(email.dailyTime||"08:00")}"></label><p>Includes tasks due today or overdue and habits still to complete.</p></div>
   <div class="email-setting"><label class="toggle-row"><input type="checkbox" name="weeklyMetrics" ${email.weeklyMetrics?"checked":""}> Weekly progress metrics</label><label class="email-select">Send each<select name="weeklyDay">${[[1,"Monday"],[2,"Tuesday"],[3,"Wednesday"],[4,"Thursday"],[5,"Friday"],[6,"Saturday"],[7,"Sunday"]].map(([value,label])=>`<option value="${value}" ${Number(email.weeklyDay||1)===value?"selected":""}>${label}</option>`).join("")}</select></label><p>Reports tasks completed, goals progressed, deadlines met, and habit consistency for the previous full week.</p></div>
+  <button type="button" class="ghost weekly-preview-trigger" data-a="weekly-preview"><i data-lucide="mail-open"></i> Preview weekly email</button>
   <div class="email-setting"><label class="toggle-row"><input type="checkbox" name="monthlyWins" ${email.monthlyWins?"checked":""}> Monthly wins recap</label><label class="email-select">Send on day<select name="monthlyDay">${[1,5,10,15,20,25].map(day=>`<option value="${day}" ${Number(email.monthlyDay||1)===day?"selected":""}>${day===1?"1st":`${day}th`} of the month</option>`).join("")}</select></label><p>Celebrates last month’s completed tasks, finished goals, habits, and review wins.</p></div>
   <button type="submit">Save profile and email schedule</button></section></form></div>
   <div class="card"><div class="section-heading"><div><span class="eyebrow">SETTINGS</span><h2>Workspace</h2></div></div><div class="mini-stat-list"><div class="mini-stat"><span>Last sign-in</span><strong>${authUser?authUser.email||"Signed in":"Local only"}</strong></div><div class="mini-stat"><span>Data mode</span><strong>${authUser&&cloudHydrated?"Synced":"Local safe"}</strong></div></div><form class="settings-form" data-f="profile-theme"><fieldset class="theme-picker"><legend>Theme color</legend><div class="theme-options">${themes.map(theme=>`<label class="theme-choice"><input type="radio" name="theme" value="${theme.id}" ${p.theme===theme.id?"checked":""}><span class="theme-swatch" style="--swatch:${theme.color}"></span><span>${theme.label}</span></label>`).join("")}</div><button type="submit" class="ghost">Apply theme</button></fieldset></form></div></div></div>`;
-}
+  if(weeklyPreviewOpen)h+=`<div class="weekly-preview-backdrop" data-a="weekly-preview-backdrop"><section class="weekly-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="weekly-preview-title"><header class="weekly-preview-header"><div><h2 id="weekly-preview-title">Weekly email preview</h2><p>Previous full week · uses your saved data · does not send</p><strong id="weekly-preview-subject"></strong></div><button type="button" class="ghost" data-a="weekly-preview-close" aria-label="Close preview"><i data-lucide="x"></i></button></header><iframe id="weekly-email-preview" title="Weekly email content" sandbox></iframe></section></div>`;
+  return h}
 
 function history(){
   const month=analyticsMonth||mon(),goals=S.goals.filter(g=>g.month===month),totals=analyticsTotals(goals,S.habits,month),tasks=totals.tasks,total=totals.total,done=totals.done;
@@ -247,6 +270,7 @@ function render(){
   checkpointDay();
   const v={today,goals,tasks,scheduler,habits,review,history,profile:profilePage}[tab]();
   document.getElementById("app").innerHTML=v;
+  const previewFrame=document.getElementById("weekly-email-preview");if(previewFrame){const preview=weeklyEmailPreview();document.getElementById("weekly-preview-subject").textContent=preview.subject;previewFrame.srcdoc=preview.html}
   const titles={today:"Today",goals:"Goals",tasks:"Tasks",scheduler:"Scheduler",habits:"Habits",review:"Reviews",history:"Growth",profile:"Profile"};
   const initials=(S.profile?.name||"Your Name").split(/\s+/).filter(Boolean).slice(0,2).map(word=>word[0]).join("").toUpperCase()||"YN";
   document.getElementById("topbar").innerHTML=`<div class="crumb"><span>Workspace</span><b>/</b><strong>${titles[tab]}</strong></div><div class="top-actions"><span class="top-date">${new Date().toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})}</span><button class="top-logout" data-a="logout" aria-label="Log out"><i data-lucide="log-out"></i><span>Log out</span></button><span class="avatar">${initials}</span></div>`;
@@ -264,6 +288,8 @@ document.addEventListener("click",e=>{
   if(e.target.closest("[data-a=auth-back]")){authMode="login";showAuth();return}
   const n=e.target.closest("[data-tab]");if(n){tab=n.dataset.tab;analyticsFocus=null;editingGoal=null;editingTask=null;render();return}
   const control=e.target.closest("[data-a]"),a=control?.dataset.a,id=control?.dataset.id;if(!a)return;
+  if(a==="weekly-preview"){weeklyPreviewOpen=true;render();return}
+  if(a==="weekly-preview-close"||(a==="weekly-preview-backdrop"&&e.target===control)){weeklyPreviewOpen=false;render();return}
   if(a==="focus"){analyticsFocus=id;render();return}
   if(a==="analytics-back"){analyticsFocus=null;render();return}
   if(a==="logout"){db?.auth.signOut();return}
@@ -287,6 +313,7 @@ document.addEventListener("click",e=>{
   if(a==="delproj"&&confirm("Delete this project?")){S.goals.forEach(g=>g.projects=g.projects.filter(p=>p.id!==id));save();render()}
   if(a==="delhab"&&confirm("Delete this habit?")){S.habits=S.habits.filter(h=>h.id!==id);save();render()}
 });
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&weeklyPreviewOpen){weeklyPreviewOpen=false;render()}});
 document.addEventListener("submit",e=>{
   e.preventDefault();const f=e.target,k=f.dataset.f,id=f.dataset.id,d=new FormData(f),t=(d.get("t")||"").trim();
   if(k==="auth"){if(!db){showAuth("Supabase is unavailable. Check your connection.");return}(async()=>{const email=String(d.get("email")||""),password=String(d.get("password")||""),submitButton=f.querySelector('button[type="submit"]');if(submitButton)submitButton.disabled=true;try{if(authMode==="update"){const confirmation=String(d.get("passwordConfirm")||"");if(password!==confirmation){showAuth("The passwords do not match.");return}const result=await db.auth.updateUser({password});if(result.error){showAuth(authErrorMessage(result.error,authMode));return}window.history.replaceState({},document.title,window.location.pathname);authMode="login";await loadCloud();return}const result=authMode==="reset"?await db.auth.resetPasswordForEmail(email,{redirectTo:window.location.href}):authMode==="login"?await db.auth.signInWithPassword({email,password}):await db.auth.signUp({email,password,options:{emailRedirectTo:window.location.origin+window.location.pathname}});if(result.error){showAuth(authErrorMessage(result.error,authMode));return}else if(authMode==="reset")showAuth("Check your email for a secure password reset link.");else if(authMode==="signup"&&!result.data.session)showAuth("Check your email to confirm your account, then sign in.")}catch(error){showAuth("Authentication is unavailable. Please try again.")}finally{if(submitButton)submitButton.disabled=false}})();return}

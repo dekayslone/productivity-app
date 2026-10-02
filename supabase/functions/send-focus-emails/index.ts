@@ -59,21 +59,36 @@ const dailyEmail = (state: Record<string, any>, today: string) => {
 
 const weeklyEmail = (state: Record<string, any>, start: string) => {
   const end = shiftDate(start, 6);
-  const tasks = getTasks(state);
-  const completed = tasks.filter(task => task.done && task.doneOn && task.doneOn >= start && task.doneOn <= end).length;
   const days = [...Array(7)].map((_, index) => shiftDate(start, index));
+  const goals = Array.isArray(state.goals) ? state.goals : [];
+  const weekTasks = goals.flatMap((goal: any) =>
+    (Array.isArray(goal.projects) ? goal.projects : []).flatMap((project: any) =>
+      (Array.isArray(project.tasks) ? project.tasks : [])
+        .filter((task: Task) => task.due && task.due >= start && task.due <= end)
+        .map((task: Task) => ({ task, goal }))));
+  const completedTasks = weekTasks.filter(({ task }) => task.done && (!task.doneOn || task.doneOn <= end));
+  const completionRate = weekTasks.length ? Math.round(completedTasks.length / weekTasks.length * 100) : 0;
+  const deadlinesMet = weekTasks.filter(({ task }) => task.done && task.doneOn && task.doneOn <= task.due!).length;
+  const weeklyGoals = new Map(weekTasks.map(({ goal }) => [goal.id || goal.title, goal]));
+  const progressedGoals = new Set(completedTasks.map(({ goal }) => goal.id || goal.title)).size;
   const habits = getHabits(state);
-  const dailyHabits = habits.filter(habit => habit.kind !== "weekly");
-  const weeklyHabits = habits.filter(habit => habit.kind === "weekly");
-  const habitTarget = dailyHabits.length * 7 + weeklyHabits.reduce((sum, habit) => sum + (habit.target || 1), 0);
-  const habitsDone = dailyHabits.reduce((sum, habit) => sum + days.filter(day => (habit.log?.[day] || 0) >= (habit.target || 1)).length, 0)
-    + weeklyHabits.reduce((sum, habit) => sum + days.reduce((total, day) => total + (habit.log?.[day] || 0), 0), 0);
-  const consistency = habitTarget ? Math.min(100, Math.round(habitsDone / habitTarget * 100)) : 0;
+  const habitRows = habits.map(habit => {
+    if (habit.kind === "weekly") {
+      const sessions = days.reduce((sum, day) => sum + (habit.log?.[day] || 0), 0);
+      return `<li>${escapeHtml(habit.name)}: ${sessions}/${habit.target || 1} sessions</li>`;
+    }
+    const daysMet = days.filter(day => (habit.log?.[day] || 0) >= (habit.target || 1)).length;
+    return `<li>${escapeHtml(habit.name)}: ${daysMet}/7 days</li>`;
+  });
+  const habitHtml = habitRows.length ? `<ul>${habitRows.join("")}</ul>` : "<p>No habits tracked this week.</p>";
   return {
     subject: `Your weekly Focus progress · ${formatDate(start)}`,
     html: emailLayout("Your week in Focus", `${formatDate(start)} – ${formatDate(end)}`, [
-      ["Tasks completed", `<strong>${completed}</strong>`],
-      ["Habit consistency", `<strong>${consistency}%</strong> <span>(${habitsDone} of ${habitTarget} planned check-ins)</span>`],
+      ["Tasks completed", `<strong>${completedTasks.length}/${weekTasks.length}</strong>`],
+      ["Completion rate", `<strong>${completionRate}%</strong>`],
+      ["Goals progressed", `<strong>${progressedGoals}/${weeklyGoals.size}</strong>`],
+      ["Deadlines met", `<strong>${deadlinesMet}/${weekTasks.length}</strong>`],
+      ["Consistency", habitHtml],
     ]),
   };
 };

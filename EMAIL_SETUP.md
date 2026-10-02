@@ -5,7 +5,7 @@ Email is sent server-side by a Supabase Edge Function. The browser stores only t
 ## Email types
 
 - Daily reminder: open tasks due today or overdue, plus incomplete daily habits.
-- Weekly progress: completed tasks and habit consistency for the previous Monday through Sunday.
+- Weekly progress: tasks completed versus due, completion rate, goals progressed, deadlines met, and habit consistency for the previous Monday through Sunday. Focus-time and capacity metrics are not included because the app does not track time.
 - Monthly wins: completed tasks, finished goals, habit sessions, and wins recorded in the monthly review for the previous month.
 
 Messages go to the confirmed email address on the user's Supabase account. Scheduled times use the timezone selected in Profile. The scheduler checks once per minute, so delivery may be up to a minute after the selected time.

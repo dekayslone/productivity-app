@@ -296,24 +296,13 @@ h3 { margin: 4px 0 0; font: 600 1rem "Space Grotesk", sans-serif; }
 .settings-form .email-select input, .settings-form .email-select select { padding: 8px 9px; border-radius: 9px; }
 .email-setting p { grid-column: 1 / -1; margin: 0; color: var(--mut); font-size: 0.72rem; }
 .weekly-preview-trigger { justify-self: start; display: inline-flex; align-items: center; gap: 8px; }
-.challenge-card { margin: 14px 0 20px; padding: 16px 18px; background: linear-gradient(115deg, color-mix(in srgb, var(--ac2) 62%, var(--card)), var(--card)); border: 1px solid color-mix(in srgb, var(--ac) 22%, var(--bd)); border-radius: 12px; box-shadow: var(--shadow); }
-.challenge-card-head, .challenge-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.challenge-card-head h2 { margin: 4px 0 0; color: var(--tx); font: 600 1rem "Space Grotesk", sans-serif; text-transform: none; }
-.challenge-state { flex: none; padding: 5px 9px; border: 1px solid var(--bd); border-radius: 999px; color: var(--mut); background: var(--card); font-size: 0.68rem; font-weight: 700; }
-.challenge-state.complete { color: var(--ac-deep); border-color: color-mix(in srgb, var(--ac) 34%, var(--bd)); background: var(--ac2); }
-.challenge-meter { height: 8px; margin: 13px 0 8px; overflow: hidden; background: var(--card); border: 1px solid var(--bd); border-radius: 999px; }
-.challenge-meter i { display: block; height: 100%; background: linear-gradient(90deg, var(--ac), #f39a63); border-radius: inherit; transition: width 240ms ease; }
-.challenge-card-foot { color: var(--mut); font-size: 0.72rem; }
-.challenge-card-foot strong { color: var(--tx); }
-.rewards-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 18px; margin-top: 2px; }
-.challenge-settings-card .section-heading > svg { width: 18px; color: var(--ac); }
-.challenge-settings-card > p { margin: 8px 0 14px; color: var(--mut); font-size: 0.76rem; }
-.challenge-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(100px, 0.45fr); gap: 11px; }
-.challenge-form label { display: grid; min-width: 0; gap: 6px; color: var(--mut); font-size: 0.68rem; font-weight: 700; }
-.challenge-form input, .challenge-form select { width: 100%; min-width: 0; }
-.challenge-form label[hidden] { display: none; }
-.challenge-form button { justify-self: start; align-self: end; min-height: 42px; }
-.challenge-profile-progress, .personal-best { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 11px; border-top: 1px solid var(--bd); color: var(--mut); font-size: 0.72rem; }
+.focus-thought-card { display: grid; gap: 10px; margin: 18px 0 23px; padding: 17px 18px; background: linear-gradient(115deg, color-mix(in srgb, var(--ac2) 52%, var(--card)), var(--card)); border: 1px solid color-mix(in srgb, var(--ac) 20%, var(--bd)); border-radius: 12px; box-shadow: var(--shadow); }
+.focus-thought-label { display: flex; align-items: center; gap: 7px; color: var(--ac-deep); font-size: 0.67rem; font-weight: 700; text-transform: uppercase; }
+.focus-thought-label svg { width: 15px; height: 15px; }
+.focus-thought-card blockquote { min-height: 52px; display: flex; align-items: center; margin: 0; color: var(--tx); font: 600 1.12rem/1.4 "Space Grotesk", sans-serif; }
+.focus-thought-card button { display: inline-flex; align-items: center; gap: 7px; justify-self: start; min-height: 42px; padding: 7px 10px; }
+.focus-thought-card button svg { width: 15px; height: 15px; }
+.personal-best { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 11px; border-top: 1px solid var(--bd); color: var(--mut); font-size: 0.72rem; }
 .challenge-profile-progress strong { margin-left: auto; color: var(--tx); font: 700 0.9rem "Space Grotesk", sans-serif; }
 .personal-best svg { width: 16px; height: 16px; color: var(--ac); }
 .personal-best strong { margin-left: auto; color: var(--tx); text-align: right; }
@@ -363,12 +352,8 @@ h3 { margin: 4px 0 0; font: 600 1rem "Space Grotesk", sans-serif; }
 	.big { font-size: 1.7rem; }
 	h1, .analytics-page h1 { font-size: 1.95rem; }
 	.settings-grid, .two-col { grid-template-columns: 1fr; }
-	.rewards-grid { grid-template-columns: 1fr; gap: 12px; }
-	.challenge-form { grid-template-columns: 1fr; }
-	.challenge-form button { justify-self: stretch; }
-	.challenge-card { padding: 14px; }
-	.challenge-card-head { align-items: flex-start; }
-	.challenge-card-head h2 { font-size: 0.92rem; }
+	.focus-thought-card { padding: 14px; }
+	.focus-thought-card blockquote { min-height: 64px; font-size: 1rem; }
 	.profile-header { flex-direction: column; align-items: flex-start; }
 	.theme-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.email-setting { grid-template-columns: 1fr; }

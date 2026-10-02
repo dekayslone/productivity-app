@@ -50,22 +50,11 @@ function streak(h){let d=td();if(!ok(h,d))d=addDays(d,-1);let n=0;while(ok(h,d))
 const wkStart=()=>addDays(td(),-((new Date().getDay()+6)%7));
 const sumR=(h,a,b)=>{let n=0,d=a;while(d<=b){n+=h.log[d]||0;d=addDays(d,1)}return n};
 const weekCount=h=>sumR(h,wkStart(),addDays(wkStart(),6));
-const emptyRewards=()=>({badges:[],weeklyChallenge:{type:"tasks",target:5,habitId:""},completedChallengeWeeks:[],personalBestTasks:0});
+const emptyRewards=()=>({badges:[],personalBestTasks:0});
 function initRewards(){
   if(!S.gamification||typeof S.gamification!=="object")S.gamification=emptyRewards();
-  const game=S.gamification;game.badges=Array.isArray(game.badges)?game.badges:[];game.completedChallengeWeeks=Array.isArray(game.completedChallengeWeeks)?game.completedChallengeWeeks:[];
-  const saved=game.weeklyChallenge||{},dailyHabits=S.habits.filter(habit=>habit.kind!=="weekly");game.weeklyChallenge={type:saved.type==="habit"?"habit":"tasks",target:Math.max(1,Math.min(saved.type==="habit"?7:40,Number(saved.target)||5)),habitId:dailyHabits.some(habit=>habit.id===saved.habitId)?saved.habitId:(dailyHabits[0]?.id||"")};
+  const game=S.gamification;game.badges=Array.isArray(game.badges)?game.badges:[];delete game.weeklyChallenge;delete game.completedChallengeWeeks;
   game.personalBestTasks=Math.max(0,Number(game.personalBestTasks)||0);return game;
-}
-function weeklyChallengeProgress(){
-  const game=initRewards(),challenge=game.weeklyChallenge,start=wkStart(),today=td(),days=[...Array(7)].map((_,index)=>addDays(start,index));
-  if(challenge.type==="habit"){
-    const habit=S.habits.find(item=>item.kind!=="weekly"&&item.id===challenge.habitId),progress=habit?days.filter(day=>day<=today&&(habit.log?.[day]||0)>=(habit.target||1)).length:0;
-    return{type:"habit",habit,start,target:challenge.target,progress,complete:game.completedChallengeWeeks.includes(start)||progress>=challenge.target};
-  }
-  const planned=allTasks().filter(({t})=>t.due&&t.due>=start&&t.due<=addDays(start,6));
-  const progress=planned.filter(({t})=>t.done&&t.doneOn>=start&&t.doneOn<=today).length;
-  return{type:"tasks",start,target:challenge.target,progress,complete:game.completedChallengeWeeks.includes(start)||progress>=challenge.target};
 }
 function updateRewards(){
   const game=initRewards(),earned=[];
@@ -79,13 +68,11 @@ function updateRewards(){
     const starts=new Set(Object.keys(habit.log||{}).filter(date=>/^\d{4}-\d{2}-\d{2}$/.test(date)).map(date=>addDays(date,-((new Date(`${date}T12:00`).getDay()+6)%7))));
     for(const start of starts){const days=[...Array(7)].map((_,index)=>addDays(start,index)),met=days.filter(day=>(habit.log?.[day]||0)>=(habit.target||1)).length;if(met>=4)award(`habit-four-days-${habit.id}-${start}`,`${habit.name}: 4 Days This Week`,`Met this habit on ${met} days during the week of ${start}.`,addDays(start,6))}
   }
-  const challenge=weeklyChallengeProgress(),isNewChallengeComplete=challenge.progress>=challenge.target&&!game.completedChallengeWeeks.includes(challenge.start);
-  if(isNewChallengeComplete)game.completedChallengeWeeks.push(challenge.start);
   const start=wkStart(),today=td(),completedThisWeek=allTasks().filter(({t})=>t.done&&t.doneOn>=start&&t.doneOn<=today).length,newPersonalBest=completedThisWeek>game.personalBestTasks;
   if(newPersonalBest)game.personalBestTasks=completedThisWeek;
-  return{earned,newPersonalBest,isNewChallengeComplete};
+  return{earned,newPersonalBest};
 }
-function rewardToast(rewards){if(rewards?.earned.length)toast(`Badge earned: ${rewards.earned[0]}`);else if(rewards?.isNewChallengeComplete)toast("Weekly challenge complete. Nice work!");else if(rewards?.newPersonalBest)toast(`New personal best: ${S.gamification.personalBestTasks} tasks this week!`)}
+function rewardToast(rewards){if(rewards?.earned.length)toast(`Badge earned: ${rewards.earned[0]}`);else if(rewards?.newPersonalBest)toast(`New personal best: ${S.gamification.personalBestTasks} tasks this week!`)}
 const monthSum=h=>sumR(h,mon()+"-01",td());
 const bar=p=>`<div class="bar"><i style="width:${p}%"></i></div>`;
 const catSel=`<select name="cat">${CATS.map(c=>`<option>${c}</option>`).join("")}</select>`;
@@ -144,10 +131,10 @@ function revealOnScroll(){
   revealVisible();
 }
 
-function weeklyChallengeCard(){
-  const challenge=weeklyChallengeProgress(),target=challenge.target,progress=Math.min(challenge.progress,target),title=challenge.type==="tasks"?`Complete ${target} planned tasks`:`Meet ${esc(challenge.habit?.name||"a habit")} on ${target} days`,detail=challenge.type==="tasks"?"Tasks due this week":"Daily target days this week";
-  return `<section class="challenge-card"><div class="challenge-card-head"><div><span class="eyebrow">WEEKLY CHALLENGE</span><h2>${title}</h2></div><span class="challenge-state ${challenge.complete?"complete":""}">${challenge.complete?"Complete":"In progress"}</span></div><div class="challenge-meter"><i style="width:${target?Math.round(progress/target*100):0}%"></i></div><div class="challenge-card-foot"><span><strong>${progress}/${target}</strong> ${detail}</span><button type="button" class="ghost" data-tab="profile">Change</button></div></section>`;
-}
+const focusThoughts=["Start with one action that moves something important forward.","A clear next step makes a large goal easier to approach.","Protect a little time for the work you most want to finish.","Progress grows when you return to what matters.","Choose the next task with intention, then begin.","A short, focused effort is still meaningful progress."];
+let focusThoughtIndex=Math.floor(Date.now()/30000)%focusThoughts.length;
+function rotateFocusThought(){focusThoughtIndex=(focusThoughtIndex+1)%focusThoughts.length;const text=document.getElementById("focus-thought-text");if(text)text.textContent=focusThoughts[focusThoughtIndex]}
+function focusThoughtCard(){return `<section class="focus-thought-card"><div class="focus-thought-label"><i data-lucide="quote"></i><span>A thought for now</span></div><blockquote id="focus-thought-text" aria-live="polite">${esc(focusThoughts[focusThoughtIndex])}</blockquote><button type="button" class="ghost" data-a="next-thought" aria-label="Show another thought"><span>Another thought</span><i data-lucide="arrow-right"></i></button></section>`}
 function today(){
   const t=td(),all=allTasks().filter(x=>!x.t.done);
   const doneToday=allTasks().filter(x=>x.t.doneOn===t).length;
@@ -156,8 +143,8 @@ function today(){
   <div class="stats"><div class="card kpi"><div class="kpi-icon"><i data-lucide="list-checks"></i></div><div class="big">${all.length}</div><div class="mut">open tasks</div></div>
   <div class="card kpi"><div class="kpi-icon"><i data-lucide="check-circle-2"></i></div><div class="big">${doneToday}</div><div class="mut">done today</div></div>
   <div class="card kpi"><div class="kpi-icon"><i data-lucide="repeat-2"></i></div><div class="big">${hd}/${S.habits.filter(h=>h.kind!=="weekly").length}</div><div class="mut">habits</div></div></div>
-  ${weeklyChallengeCard()}
   ${momentumChart()}
+  ${focusThoughtCard()}
   ${core(t)}<h2>Tasks</h2>`;
   h+=all.length?all.sort((a,b)=>(a.t.due||"9999").localeCompare(b.t.due||"9999")).map(x=>taskRow(x)).join(""):`<div class="card mut">No open tasks. ${S.goals.length?"Add a task from the Tasks page.":"Start by adding a goal in the Goals tab."}</div>`;
   const cur=S.goals.filter(g=>g.month===mon()).sort((a,b)=>(a.pri||99)-(b.pri||99));
@@ -243,7 +230,7 @@ function weeklyEmailPreview(){
 function profilePage(){
   const p=S.profile||{name:"Your Name",email:"you@example.com",role:"Productive builder",theme:"forest",timezone:"UTC",bio:"Build deliberate momentum every day.",notifications:true};
   const email=p.emailPreferences||{dailyReminder:p.notifications!==false,dailyTime:"08:00",weeklyMetrics:false,weeklyDay:1,monthlyWins:false,monthlyDay:1};
-  const game=initRewards(),challenge=game.weeklyChallenge,challengeProgress=weeklyChallengeProgress(),badges=game.badges.slice().sort((a,b)=>b.earnedOn.localeCompare(a.earnedOn));
+  const game=initRewards(),badges=game.badges.slice().sort((a,b)=>b.earnedOn.localeCompare(a.earnedOn));
   const timezone=({"GMT+1":"Africa/Lagos","GMT+2":"Europe/Paris","GMT+5:30":"Asia/Kolkata"})[p.timezone]||p.timezone||"UTC";
   const initials=(p.name||"YN").split(/\s+/).filter(Boolean).slice(0,2).map(word=>word[0]).join("").toUpperCase()||"YN";
   const themes=[{id:"forest",label:"Forest",color:"#267b65"},{id:"ocean",label:"Ocean",color:"#3578a8"},{id:"berry",label:"Berry",color:"#a84b70"},{id:"sunset",label:"Sunset",color:"#c36535"},{id:"slate",label:"Slate",color:"#60747d"}];
@@ -261,7 +248,7 @@ function profilePage(){
   <button type="submit">Save profile and email schedule</button></section></form></div>
   <div class="card"><div class="section-heading"><div><span class="eyebrow">SETTINGS</span><h2>Workspace</h2></div></div><div class="mini-stat-list"><div class="mini-stat"><span>Last sign-in</span><strong>${authUser?authUser.email||"Signed in":"Local only"}</strong></div><div class="mini-stat"><span>Data mode</span><strong>${authUser&&cloudHydrated?"Synced":"Local safe"}</strong></div></div><form class="settings-form" data-f="profile-theme"><fieldset class="theme-picker"><legend>Theme color</legend><div class="theme-options">${themes.map(theme=>`<label class="theme-choice"><input type="radio" name="theme" value="${theme.id}" ${p.theme===theme.id?"checked":""}><span class="theme-swatch" style="--swatch:${theme.color}"></span><span>${theme.label}</span></label>`).join("")}</div><button type="submit" class="ghost">Apply theme</button></fieldset></form></div></div></div>`;
   if(weeklyPreviewOpen)h+=`<div class="weekly-preview-backdrop" data-a="weekly-preview-backdrop"><section class="weekly-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="weekly-preview-title"><header class="weekly-preview-header"><div><h2 id="weekly-preview-title">Weekly email preview</h2><p>Previous full week · uses your saved data · does not send</p><strong id="weekly-preview-subject"></strong></div><button type="button" class="ghost" data-a="weekly-preview-close" aria-label="Close preview"><i data-lucide="x"></i></button></header><iframe id="weekly-email-preview" title="Weekly email content" sandbox></iframe></section></div>`;
-  h+=`<div class="rewards-grid"><section class="card challenge-settings-card"><div class="section-heading"><div><span class="eyebrow">MAKE IT YOURS</span><h2>Weekly challenge</h2></div><i data-lucide="target"></i></div><p>Choose a personal target. Missing a week never removes a badge or record.</p><form class="challenge-form" data-f="challenge"><label>Challenge<select id="challengeType" name="challengeType"><option value="tasks" ${challenge.type==="tasks"?"selected":""}>Complete planned tasks</option><option value="habit" ${challenge.type==="habit"?"selected":""}>Meet a habit goal</option></select></label><label>Target<input id="challengeTarget" type="number" name="target" min="1" max="${challenge.type==="habit"?7:40}" value="${challenge.target}" required></label><label id="challengeHabitWrap" ${challenge.type==="habit"?"":"hidden"}>Daily habit<select name="habitId" ${S.habits.some(habit=>habit.kind!=="weekly")?"":"disabled"}>${S.habits.filter(habit=>habit.kind!=="weekly").map(habit=>`<option value="${esc(habit.id)}" ${habit.id===challenge.habitId?"selected":""}>${esc(habit.name)}</option>`).join("")||`<option value="">Add a daily habit first</option>`}</select></label><button type="submit">Save challenge</button></form><div class="challenge-profile-progress"><span>This week</span><strong>${Math.min(challengeProgress.progress,challengeProgress.target)}/${challengeProgress.target}</strong></div><div class="personal-best"><i data-lucide="trophy"></i><span>Personal best</span><strong>${game.personalBestTasks} tasks in one week</strong></div></section><section class="card badges-card"><div class="section-heading"><div><span class="eyebrow">YOUR MILESTONES</span><h2>Badges</h2></div><span class="badge-total">${badges.length}</span></div><div class="badge-list">${badges.map(badge=>`<article class="badge-item"><span class="badge-mark"><i data-lucide="award"></i></span><div><strong>${esc(badge.title)}</strong><p>${esc(badge.description)}</p><time datetime="${esc(badge.earnedOn)}">Earned ${new Date(`${badge.earnedOn}T12:00`).toLocaleDateString()}</time></div></article>`).join("")||`<div class="badges-empty"><i data-lucide="sparkles"></i><strong>Your first badge is waiting.</strong><span>Finish a project or goal to earn one.</span></div>`}</div></section></div>`;
+  h+=`<section class="card badges-card"><div class="section-heading"><div><span class="eyebrow">YOUR MILESTONES</span><h2>Badges</h2></div><span class="badge-total">${badges.length}</span></div><div class="badge-list">${badges.map(badge=>`<article class="badge-item"><span class="badge-mark"><i data-lucide="award"></i></span><div><strong>${esc(badge.title)}</strong><p>${esc(badge.description)}</p><time datetime="${esc(badge.earnedOn)}">Earned ${new Date(`${badge.earnedOn}T12:00`).toLocaleDateString()}</time></div></article>`).join("")||`<div class="badges-empty"><i data-lucide="sparkles"></i><strong>Your first badge is waiting.</strong><span>Finish a project or goal to earn one.</span></div>`}</div><div class="personal-best"><i data-lucide="trophy"></i><span>Personal best</span><strong>${game.personalBestTasks} tasks in one week</strong></div></section>`;
   return h}
 
 function history(){
@@ -345,6 +332,7 @@ document.addEventListener("click",e=>{
   const n=e.target.closest("[data-tab]");if(n){tab=n.dataset.tab;mobileMoreOpen=false;analyticsFocus=null;editingGoal=null;editingTask=null;render();return}
   const control=e.target.closest("[data-a]"),a=control?.dataset.a,id=control?.dataset.id;if(!a)return;
   if(a==="mobile-more"){mobileMoreOpen=!mobileMoreOpen;render();return}
+  if(a==="next-thought"){rotateFocusThought();return}
   if(a==="weekly-preview"){weeklyPreviewOpen=true;render();return}
   if(a==="weekly-preview-close"||(a==="weekly-preview-backdrop"&&e.target===control)){weeklyPreviewOpen=false;render();return}
   if(a==="focus"){analyticsFocus=id;render();return}
@@ -361,10 +349,10 @@ document.addEventListener("click",e=>{
   if(a==="subtask"){const task=allTasks().find(x=>x.t.id===id)?.t,sub=task?.subtasks?.find(s=>s.id===control.dataset.subid);if(sub){sub.done=control.checked;save();render()}return}
   if(a==="delsubtask"&&confirm("Delete this subtask?")){const task=allTasks().find(x=>x.t.id===id)?.t;if(task)task.subtasks=(task.subtasks||[]).filter(s=>s.id!==control.dataset.subid);save();render();return}
   if(a==="task"){const x=allTasks().find(y=>y.t.id===id);x.t.done=e.target.checked;x.t.doneOn=x.t.done?td():null;
-    const rewards=x.t.done?updateRewards():null;save();if(rewards&&(rewards.earned.length||rewards.isNewChallengeComplete||rewards.newPersonalBest))rewardToast(rewards);else if(x.t.done){if(prog(x.g)===100)toast("Goal complete: "+x.g.title+". Well done.");else if(x.t.ms)toast("Milestone reached.")}render()}
+    const rewards=x.t.done?updateRewards():null;save();if(rewards&&(rewards.earned.length||rewards.newPersonalBest))rewardToast(rewards);else if(x.t.done){if(prog(x.g)===100)toast("Goal complete: "+x.g.title+". Well done.");else if(x.t.ms)toast("Milestone reached.")}render()}
   if(a==="deltask"&&confirm("Delete this task?")){S.goals.forEach(g=>g.projects.forEach(p=>p.tasks=p.tasks.filter(t=>t.id!==id)));save();render()}
-  if(a==="hab"){const h=S.habits.find(y=>y.id===id);if(e.target.checked)h.log[td()]=1;else delete h.log[td()];const rewards=e.target.checked?updateRewards():null;save();if(rewards&&(rewards.earned.length||rewards.isNewChallengeComplete||rewards.newPersonalBest))rewardToast(rewards);render()}
-  if(a==="sess"){const h=S.habits.find(y=>y.id===id);h.log[td()]=(h.log[td()]||0)+1;const rewards=updateRewards();save();if(rewards.earned.length||rewards.isNewChallengeComplete||rewards.newPersonalBest)rewardToast(rewards);else toast(weekCount(h)>=h.target?"Weekly target hit!":"Session logged.");render()}
+  if(a==="hab"){const h=S.habits.find(y=>y.id===id);if(e.target.checked)h.log[td()]=1;else delete h.log[td()];const rewards=e.target.checked?updateRewards():null;save();if(rewards&&(rewards.earned.length||rewards.newPersonalBest))rewardToast(rewards);render()}
+  if(a==="sess"){const h=S.habits.find(y=>y.id===id);h.log[td()]=(h.log[td()]||0)+1;const rewards=updateRewards();save();if(rewards.earned.length||rewards.newPersonalBest)rewardToast(rewards);else toast(weekCount(h)>=h.target?"Weekly target hit!":"Session logged.");render()}
   if(a==="desess"){const h=S.habits.find(y=>y.id===id),count=h?.log[td()]||0;if(h&&count>0){if(count===1)delete h.log[td()];else h.log[td()]=count-1;save();toast("Today's session removed.");render()}}
   if(a==="delgoal"&&confirm("Delete this goal?")){S.goals=S.goals.filter(g=>g.id!==id);save();render()}
   if(a==="delproj"&&confirm("Delete this project?")){S.goals.forEach(g=>g.projects=g.projects.filter(p=>p.id!==id));save();render()}
@@ -374,7 +362,6 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&weeklyPreviewOpen){
 document.addEventListener("submit",e=>{
   e.preventDefault();const f=e.target,k=f.dataset.f,id=f.dataset.id,d=new FormData(f),t=(d.get("t")||"").trim();
   if(k==="auth"){if(!db){showAuth("Supabase is unavailable. Check your connection.");return}(async()=>{const email=String(d.get("email")||""),password=String(d.get("password")||""),submitButton=f.querySelector('button[type="submit"]');if(submitButton)submitButton.disabled=true;try{if(authMode==="update"){const confirmation=String(d.get("passwordConfirm")||"");if(password!==confirmation){showAuth("The passwords do not match.");return}const result=await db.auth.updateUser({password});if(result.error){showAuth(authErrorMessage(result.error,authMode));return}window.history.replaceState({},document.title,window.location.pathname);authMode="login";await loadCloud();return}const result=authMode==="reset"?await db.auth.resetPasswordForEmail(email,{redirectTo:window.location.href}):authMode==="login"?await db.auth.signInWithPassword({email,password}):await db.auth.signUp({email,password,options:{emailRedirectTo:window.location.origin+window.location.pathname}});if(result.error){showAuth(authErrorMessage(result.error,authMode));return}else if(authMode==="reset")showAuth("Check your email for a secure password reset link.");else if(authMode==="signup"&&!result.data.session)showAuth("Check your email to confirm your account, then sign in.")}catch(error){showAuth("Authentication is unavailable. Please try again.")}finally{if(submitButton)submitButton.disabled=false}})();return}
-  if(k==="challenge"){const type=d.get("challengeType")==="habit"?"habit":"tasks",dailyHabits=S.habits.filter(habit=>habit.kind!=="weekly"),target=Math.max(1,Math.min(type==="habit"?7:40,Number(d.get("target"))||5)),habitId=String(d.get("habitId")||dailyHabits[0]?.id||"");if(type==="habit"&&!dailyHabits.some(habit=>habit.id===habitId)){toast("Add a daily habit before choosing a habit challenge.");return}initRewards().weeklyChallenge={type,target,habitId};const rewards=updateRewards();save();render();if(rewards.isNewChallengeComplete)rewardToast(rewards);return}
   if(k==="profile-theme"){S.profile=S.profile||{};S.profile.theme=String(d.get("theme")||S.profile.theme||"forest");save();render();return}
   if(k==="profile"){S.profile=S.profile||{};S.profile.name=String(d.get("name")||S.profile.name||"Your Name").trim();S.profile.email=String(d.get("email")||S.profile.email||"").trim();S.profile.role=String(d.get("role")||S.profile.role||"Productive builder").trim();S.profile.theme=String(d.get("theme")||S.profile.theme||"forest");S.profile.timezone=String(d.get("timezone")||S.profile.timezone||"UTC");S.profile.bio=String(d.get("bio")||S.profile.bio||"").trim();S.profile.emailPreferences={dailyReminder:!!d.get("dailyReminder"),dailyTime:String(d.get("dailyTime")||"08:00"),weeklyMetrics:!!d.get("weeklyMetrics"),weeklyDay:Math.min(7,Math.max(1,Number(d.get("weeklyDay"))||1)),monthlyWins:!!d.get("monthlyWins"),monthlyDay:Math.min(28,Math.max(1,Number(d.get("monthlyDay"))||1))};S.profile.notifications=S.profile.emailPreferences.dailyReminder;save();render();return}
   if(k==="goal")S.goals.push({id:uid(),title:t,cat:d.get("cat"),month:gm,pri:S.goals.filter(x=>x.month===gm).length+1,projects:[]});
@@ -401,11 +388,12 @@ function core(t){
  h+=`<h2>Daily core system</h2>`+(dly.map(x=>hrow(x,t)).join("")||'<div class="card mut">No daily habits yet.</div>');
  wk.forEach(x=>{const c=weekCount(x),todaySessions=x.log[td()]||0,p=Math.min(100,Math.round(100*c/x.target));h+=`<div class="card"><div class="row"><div class="g">${esc(x.name)}<div class="mut">${c}/${x.target} this week${todaySessions?` · ${todaySessions} today`:""}</div></div><div class="session-actions"><button data-a="sess" data-id="${x.id}"><i data-lucide="plus"></i> Session</button>${todaySessions?`<button class="ghost" data-a="desess" data-id="${x.id}" aria-label="Remove today's session"><i data-lucide="minus"></i></button>`:""}</div></div>${bar(p)}</div>`});
  return h}
-document.addEventListener("change",e=>{if(e.target.id==="challengeType"){const isHabit=e.target.value==="habit",wrap=document.getElementById("challengeHabitWrap"),target=document.getElementById("challengeTarget");if(wrap)wrap.hidden=!isHabit;if(target){target.max=isHabit?7:40;if(Number(target.value)>Number(target.max))target.value=target.max}return}if(e.target.dataset.a!=="habval")return;
+document.addEventListener("change",e=>{if(e.target.dataset.a!=="habval")return;
  const h=S.habits.find(y=>y.id===e.target.dataset.id),v=Math.max(0,+e.target.value||0);
- if(v)h.log[td()]=v;else delete h.log[td()];const complete=ok(h,td()),rewards=complete?updateRewards():null;save();if(rewards&&(rewards.earned.length||rewards.isNewChallengeComplete||rewards.newPersonalBest))rewardToast(rewards);else if(complete)toast(h.name.split(":")[0]+" done.");render()});
+ if(v)h.log[td()]=v;else delete h.log[td()];const complete=ok(h,td()),rewards=complete?updateRewards():null;save();if(rewards&&(rewards.earned.length||rewards.newPersonalBest))rewardToast(rewards);else if(complete)toast(h.name.split(":")[0]+" done.");render()});
 
 checkpointDay();
 render();
 setInterval(()=>{const current=td();if(S.meta?.lastDay&&S.meta.lastDay!==current){checkpointDay(current);render();}},60000);
+setInterval(()=>{if(document.getElementById("focus-thought-text"))rotateFocusThought()},30000);
 initAuth();

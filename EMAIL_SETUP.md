@@ -2,6 +2,12 @@
 
 Email is sent server-side by a Supabase Edge Function. The browser stores only the schedule preferences; Resend and cron credentials must never be added to `app.js` or `supabase-config.js`.
 
+## Data storage and retention
+
+The full workspace is saved to browser storage after each change. The app asks the browser to preserve its storage where supported, but the browser can deny that request, storage can be cleared by the user or browser, and private browsing data may disappear when the session ends. Signed-out data remains on that browser and is not a durable backup.
+
+When signed in, workspace snapshots are also synced to the user's Supabase `focus_state` row in order, with a retry when the browser reconnects. If the account has no cloud state yet, the existing local workspace is uploaded. For an existing account, a newer saved snapshot from that same account on this device is kept; otherwise, the newer cloud state is used. Simultaneous edits across devices are not merged. If a local write or cloud sync fails, the app reports the failure. No browser app can promise indefinite retention, and this app does not configure database backups; use your Supabase project's backup and retention settings for important data.
+
 ## Email types
 
 - Daily reminder: open tasks due today or overdue, plus incomplete daily habits.

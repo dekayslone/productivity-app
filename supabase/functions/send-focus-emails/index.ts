@@ -5,6 +5,7 @@ type Habit = { name?: string; target?: number; kind?: string; log?: Record<strin
 type Profile = {
   timezone?: string;
   notifications?: boolean;
+  accountabilityPartners?: { id?: string; email?: string; goalIds?: string[] }[];
   emailPreferences?: {
     dailyReminder?: boolean;
     dailyTime?: string;
@@ -49,11 +50,11 @@ const dailyEmail = (state: Record<string, any>, today: string) => {
   const habitHtml = habits.length
     ? `<ul>${habits.slice(0, 8).map(habit => `<li>${escapeHtml(habit.name)}</li>`).join("")}</ul>`
     : "<p>Your daily habits are complete.</p>";
+  const sections: [string, string][] = [["Tasks to review", dueHtml]];
+  if (!state.accountabilityScoped) sections.push(["Habits to keep moving", habitHtml]);
   return {
     subject: `Your Hoptasks plan for ${formatDate(today)}`,
-    html: emailLayout("A fresh day, a clear plan", `Here is your Hoptasks check-in for ${formatDate(today)}.`, [
-      ["Tasks to review", dueHtml], ["Habits to keep moving", habitHtml],
-    ]),
+    html: emailLayout("A fresh day, a clear plan", `Here is your Hoptasks check-in for ${formatDate(today)}.`, sections),
   };
 };
 
@@ -81,15 +82,16 @@ const weeklyEmail = (state: Record<string, any>, start: string) => {
     return `<li>${escapeHtml(habit.name)}: ${daysMet}/7 days</li>`;
   });
   const habitHtml = habitRows.length ? `<ul>${habitRows.join("")}</ul>` : "<p>No habits tracked this week.</p>";
+  const sections: [string, string][] = [
+    ["Tasks completed", `<strong>${completedTasks.length}/${weekTasks.length}</strong>`],
+    ["Completion rate", `<strong>${completionRate}%</strong>`],
+    ["Goals progressed", `<strong>${progressedGoals}/${weeklyGoals.size}</strong>`],
+    ["Deadlines met", `<strong>${deadlinesMet}/${weekTasks.length}</strong>`],
+  ];
+  if (!state.accountabilityScoped) sections.push(["Consistency", habitHtml]);
   return {
     subject: `Your weekly Hoptasks progress · ${formatDate(start)}`,
-    html: emailLayout("Your week in Hoptasks", `${formatDate(start)} – ${formatDate(end)}`, [
-      ["Tasks completed", `<strong>${completedTasks.length}/${weekTasks.length}</strong>`],
-      ["Completion rate", `<strong>${completionRate}%</strong>`],
-      ["Goals progressed", `<strong>${progressedGoals}/${weeklyGoals.size}</strong>`],
-      ["Deadlines met", `<strong>${deadlinesMet}/${weekTasks.length}</strong>`],
-      ["Consistency", habitHtml],
-    ]),
+    html: emailLayout("Your week in Hoptasks", `${formatDate(start)} – ${formatDate(end)}`, sections),
   };
 };
 
@@ -115,14 +117,13 @@ const monthlyEmail = (state: Record<string, any>, start: string, end: string) =>
   const goalHtml = goalWins.length
     ? `<ul>${goalWins.slice(0, 5).map((goal: any) => `<li>${escapeHtml(goal.title)}</li>`).join("")}</ul>`
     : "<p>Keep building; every completed task adds up.</p>";
+  const sections: [string, string][] = [["Tasks completed", `<strong>${completed.length}</strong>`]];
+  if (!state.accountabilityScoped) sections.push(["Habit sessions", `<strong>${habitSessions}</strong> <span>across ${activeDays.size} task-active days</span>`]);
+  sections.push(["Goals completed", goalHtml]);
+  if (!state.accountabilityScoped) sections.push(["Wins from your monthly review", reviewHtml]);
   return {
     subject: `Your Hoptasks wins from ${new Intl.DateTimeFormat("en", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${start}T12:00:00.000Z`))}`,
-    html: emailLayout("A month of progress", `${formatDate(start)} – ${formatDate(end)}`, [
-      ["Tasks completed", `<strong>${completed.length}</strong>`],
-      ["Habit sessions", `<strong>${habitSessions}</strong> <span>across ${activeDays.size} task-active days</span>`],
-      ["Goals completed", goalHtml],
-      ["Wins from your monthly review", reviewHtml],
-    ]),
+    html: emailLayout("A month of progress", `${formatDate(start)} – ${formatDate(end)}`, sections),
   };
 };
 
@@ -203,42 +204,102 @@ Deno.serve(async request => {
     const previousMonthStart = `${previousMonthEnd.slice(0, 7)}-01`;
     const mondayOffset = clock.weekday === 7 ? 6 : clock.weekday - 1;
     const previousWeekStart = shiftDate(clock.date, -mondayOffset - 7);
-    const candidates: { kind: "daily" | "weekly" | "monthly"; period: string; email: { subject: string; html: string } }[] = [];
+    const candidates: { kind: "daily" | "weekly" | "monthly"; period: string; buildEmail: (state: Record<string, any>) => { subject: string; html: string } }[] = [];
 
     if (prefs.dailyReminder && /^\d{2}:\d{2}$/.test(prefs.dailyTime || "") && prefs.dailyTime === clock.time) {
-      candidates.push({ kind: "daily", period: clock.date, email: dailyEmail(subscriber.state, clock.date) });
+      candidates.push({ kind: "daily", period: clock.date, buildEmail: state => dailyEmail(state, clock.date) });
     }
     if (prefs.weeklyMetrics && Number(prefs.weeklyDay) === clock.weekday) {
-      candidates.push({ kind: "weekly", period: previousWeekStart, email: weeklyEmail(subscriber.state, previousWeekStart) });
+      candidates.push({ kind: "weekly", period: previousWeekStart, buildEmail: state => weeklyEmail(state, previousWeekStart) });
     }
     if (prefs.monthlyWins && Number(prefs.monthlyDay || 1) === Number(clock.date.slice(8, 10))) {
-      candidates.push({ kind: "monthly", period: previousMonthStart, email: monthlyEmail(subscriber.state, previousMonthStart, previousMonthEnd) });
+      candidates.push({ kind: "monthly", period: previousMonthStart, buildEmail: state => monthlyEmail(state, previousMonthStart, previousMonthEnd) });
     }
     for (const candidate of candidates) {
-      const { data: claimed, error: claimError } = await supabase.rpc("claim_focus_email_delivery", {
-        p_user_id: subscriber.user_id,
-        p_email_kind: candidate.kind,
-        p_period_start: candidate.period,
-      });
-      if (claimError) {
-        failures.push(`${subscriber.user_id}: ${claimError.message}`);
-        continue;
+      const recipients: { email: string; key: string; state: Record<string, any> }[] = [
+        { email: subscriber.email, key: "owner", state: subscriber.state },
+      ];
+      const recipientByEmail = new Map([[subscriber.email.toLowerCase(), recipients[0]]]);
+      const stateGoals = Array.isArray(subscriber.state?.goals) ? subscriber.state.goals : [];
+      for (const [index, partner] of (Array.isArray(profile.accountabilityPartners) ? profile.accountabilityPartners : []).entries()) {
+        const email = String(partner?.email || "").trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.toLowerCase() === subscriber.email.toLowerCase()) continue;
+        const goalIds = Array.isArray(partner.goalIds) ? partner.goalIds : [];
+        const goals = stateGoals.filter((goal: any) => goalIds.includes(String(goal.id)));
+        if (!goals.length) continue;
+        const emailKey = email.toLowerCase(), existing = recipientByEmail.get(emailKey);
+        if (existing) {
+          existing.state.goals = [...new Map([...existing.state.goals, ...goals].map((goal: any) => [String(goal.id), goal])).values()];
+          continue;
+        }
+        const scopedState = { ...subscriber.state, goals, habits: [], reviews: [], tasks: [], accountabilityScoped: true };
+        const recipient = { email, key: String(partner.id || `partner-${index}`).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80), state: scopedState };
+        recipientByEmail.set(emailKey, recipient);
+        recipients.push(recipient);
       }
-      if (!claimed) {
-        skipped++;
-        continue;
-      }
-      try {
-        await sendEmail(subscriber.email, candidate.email.subject, candidate.email.html,
-          `focus-${subscriber.user_id}-${candidate.kind}-${candidate.period}`);
-        sent++;
-      } catch (sendError) {
-        await supabase.rpc("release_focus_email_delivery", {
+      for (const recipient of recipients) {
+        const email = candidate.buildEmail(recipient.state);
+        const ownerName = String(subscriber.state?.profile?.name || "Your accountability partner").trim();
+        const outgoingEmail = recipient.key === "owner" ? email : {
+          subject: email.subject.replace(/^Your /, `${ownerName}'s `),
+          html: email.html
+            .replace("</h1>", `</h1><p style="margin:0 0 16px;color:#687b72">${escapeHtml(ownerName)} shared this accountability update with you.</p>`)
+            .replace("You received this because email updates are enabled in your Hoptasks settings.", `${escapeHtml(ownerName)} shared selected goal updates with you through Hoptasks.`),
+        };
+        const partnerRecipient = recipient.key !== "owner";
+        const claimRpc = partnerRecipient ? "claim_accountability_email_delivery" : "claim_focus_email_delivery";
+        const claimArgs = partnerRecipient ? {
+          p_user_id: subscriber.user_id,
+          p_recipient_key: recipient.key,
+          p_email_kind: candidate.kind,
+          p_period_start: candidate.period,
+        } : {
           p_user_id: subscriber.user_id,
           p_email_kind: candidate.kind,
           p_period_start: candidate.period,
-        });
-        failures.push(`${subscriber.user_id}: ${String(sendError)}`);
+        };
+        const { data: claimed, error: claimError } = await supabase.rpc(claimRpc, claimArgs);
+        if (claimError) {
+          failures.push(`${subscriber.user_id}/${recipient.key}: ${claimError.message}`);
+          continue;
+        }
+        if (!claimed) {
+          skipped++;
+          continue;
+        }
+        try {
+          await sendEmail(recipient.email, outgoingEmail.subject, outgoingEmail.html,
+            `focus-${subscriber.user_id}-${recipient.key}-${candidate.kind}-${candidate.period}`);
+          sent++;
+          const markRpc = partnerRecipient ? "mark_accountability_email_delivery_sent" : "mark_focus_email_delivery_sent";
+          const markArgs = partnerRecipient ? {
+            p_user_id: subscriber.user_id,
+            p_recipient_key: recipient.key,
+            p_email_kind: candidate.kind,
+            p_period_start: candidate.period,
+          } : {
+            p_user_id: subscriber.user_id,
+            p_email_kind: candidate.kind,
+            p_period_start: candidate.period,
+          };
+          const { error: markError } = await supabase.rpc(markRpc, markArgs);
+          if (markError) failures.push(`${subscriber.user_id}/${recipient.key}: email sent but delivery status could not be saved: ${markError.message}`);
+        } catch (sendError) {
+          const releaseRpc = partnerRecipient ? "release_accountability_email_delivery" : "release_focus_email_delivery";
+          const releaseArgs = partnerRecipient ? {
+            p_user_id: subscriber.user_id,
+            p_recipient_key: recipient.key,
+            p_email_kind: candidate.kind,
+            p_period_start: candidate.period,
+          } : {
+            p_user_id: subscriber.user_id,
+            p_email_kind: candidate.kind,
+            p_period_start: candidate.period,
+          };
+          const { error: releaseError } = await supabase.rpc(releaseRpc, releaseArgs);
+          if (releaseError) failures.push(`${subscriber.user_id}/${recipient.key}: delivery retry cleanup failed: ${releaseError.message}`);
+          failures.push(`${subscriber.user_id}/${recipient.key}: ${String(sendError)}`);
+        }
       }
     }
   }

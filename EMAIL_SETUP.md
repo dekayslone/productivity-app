@@ -14,12 +14,12 @@ When signed in, workspace snapshots are also synced to the user's Supabase `focu
 - Weekly progress: tasks completed versus due, completion rate, goals progressed, deadlines met, and habit consistency for the previous Monday through Sunday. Focus-time and capacity metrics are not included because the app does not track time.
 - Monthly wins: completed tasks, finished goals, habit sessions, and wins recorded in the monthly review for the previous month.
 
-Messages go to the confirmed email address on the user's Supabase account. Scheduled times use the timezone selected in Profile. The scheduler checks once per minute, so delivery may be up to a minute after the selected time.
+Messages go to the confirmed email address on the user's Supabase account. Accountability partners can be added in Profile and assigned one or more goals. They receive the enabled daily, weekly, and monthly messages on the same schedule and timezone as the account owner, but only with tasks and metrics from their assigned goals; workspace habits and review notes are not shared. Only add partners who have agreed to receive these emails. The scheduler checks once per minute, so delivery may be up to a minute after the selected time.
 
 ## Supabase and Resend
 
 1. Verify a sending domain in Resend and create an API key. Choose a `MAIL_FROM` address on that verified domain.
-2. Run `supabase-email.sql` in the Supabase SQL Editor. The project must already have the `focus_state` table from `supabase-schema.sql` or `supabase-cloud-state.sql`.
+2. Run (or re-run, to add recipient-specific delivery tracking) `supabase-email.sql` in the Supabase SQL Editor. The project must already have the `focus_state` table from `supabase-schema.sql` or `supabase-cloud-state.sql`.
 3. Install the Supabase CLI, then link this project from the workspace:
 
    ```powershell
@@ -27,7 +27,7 @@ Messages go to the confirmed email address on the user's Supabase account. Sched
    supabase link --project-ref YOUR_PROJECT_REF
    ```
 
-4. Set the server-only secrets and deploy the function. Use a long random value for `EMAIL_CRON_SECRET` and keep it private:
+4. Set the server-only secrets and deploy the function. For an existing deployment, redeploy after running the updated SQL so recipient-specific delivery tracking is available. Use a long random value for `EMAIL_CRON_SECRET` and keep it private:
 
    ```powershell
    supabase secrets set RESEND_API_KEY="YOUR_RESEND_API_KEY" EMAIL_CRON_SECRET="YOUR_RANDOM_CRON_SECRET" MAIL_FROM="Hoptasks <updates@your-verified-domain.com>"

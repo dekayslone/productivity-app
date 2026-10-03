@@ -716,7 +716,9 @@ body.auth-mode #app { display: none; }
 .auth-card h1 { margin: 7px 0 10px; color: #edf5f0; font-size: 2rem; }
 .auth-card p { margin: 0 0 20px; color: #9eb1ab; font-size: 0.83rem; }
 .auth-card label { display: flex; flex-direction: column; gap: 6px; margin-top: 13px; color: #a8b9b3; font-size: 0.73rem; font-weight: 600; }
-.auth-card input { width: 100%; background: #0e191a; border-color: #304846; color: #edf5f0; }
+.auth-card input, .auth-card select { width: 100%; background: #0e191a; border-color: #304846; color: #edf5f0; }
+.onboarding-card { width: min(100%, 520px); }
+.onboarding-name-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .auth-card > button[type="submit"] { width: 100%; margin-top: 20px; background: #5bb891; color: #0c211a; }
 .auth-forgot { display: block; width: 100%; margin-top: 12px; padding: 4px; background: transparent; color: #8bd9b4; font-size: 0.72rem; }
 .auth-forgot:hover { background: transparent; color: #b7f0d1; box-shadow: none; transform: none; }
@@ -748,5 +750,6 @@ body.auth-mode #app { display: none; }
 }
 @media (max-width: 520px) {
 	.auth-card .auth-forgot, .auth-card .auth-switch { min-height: 44px; }
+	.onboarding-name-fields { grid-template-columns: 1fr; gap: 0; }
 	#toast { bottom: calc(130px + env(safe-area-inset-bottom, 0px)); }
 }

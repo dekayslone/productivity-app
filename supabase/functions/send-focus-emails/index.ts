@@ -13,9 +13,16 @@ type Profile = {
     weeklyDay?: number;
     monthlyWins?: boolean;
     monthlyDay?: number;
+    weeklyQuote?: boolean;
+    weeklyQuoteDay?: number;
+    weeklyQuoteTime?: string;
+    whatsNew?: boolean;
+    newsletter?: boolean;
   };
 };
 type Subscriber = { user_id: string; email: string; state: Record<string, any> };
+type WelcomeSubscriber = { user_id: string; email: string; name: string };
+type Campaign = { id: string; campaign_type: "whats_new" | "newsletter"; title: string; subject: string; content: string; publish_at: string };
 
 const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -127,6 +134,49 @@ const monthlyEmail = (state: Record<string, any>, start: string, end: string) =>
   };
 };
 
+const weeklyQuotes = [
+  "Start with one action that moves something important forward.",
+  "A clear next step makes a large goal easier to approach.",
+  "Protect a little time for the work you most want to finish.",
+  "Progress grows when you return to what matters.",
+  "Choose the next task with intention, then begin.",
+  "A short, focused effort is still meaningful progress.",
+];
+
+const weeklyQuoteEmail = (periodStart: string) => {
+  const weekNumber = Math.floor(Date.parse(`${periodStart}T00:00:00.000Z`) / 604800000);
+  const quote = weeklyQuotes[((weekNumber % weeklyQuotes.length) + weeklyQuotes.length) % weeklyQuotes.length];
+  return {
+    subject: "A thought for your week · Hoptasks",
+    html: emailLayout("A thought for your week", formatDate(periodStart), [["Your weekly quote", `<blockquote style="margin:0;font-size:20px">${escapeHtml(quote)}</blockquote>`]]),
+  };
+};
+
+const welcomeEmail = (fullName: string) => {
+  const name = String(fullName || "").trim().split(/\s+/)[0] || "there";
+  return {
+    subject: "Welcome to Hoptasks",
+    html: emailLayout(`Welcome, ${name}!`, "Your account is verified and ready.", [[
+      "Find your frog",
+      `<p>There will always be something to do. The trick is knowing what to do first.</p>
+      <p>Your biggest task is usually the one you’re most tempted to avoid. So don’t overthink it.</p>
+      <p>Find the frog (task) and hop on it.</p>
+      <p>One task at a time. One day at a time. One goal closer.</p>
+      <p>Because productivity isn’t about doing everything. It’s about doing what matters. Your first task is waiting.</p>
+      <p><strong>Ready to hop on it?</strong></p>
+      <p style="margin:24px 0"><a href="https://dekayslone.github.io/productivity-app/" style="display:inline-block;padding:12px 24px;border-radius:8px;background:#267b65;color:#fff;font-weight:bold;text-decoration:none">Get Started →</a></p>
+      <p>Welcome to HopTasks. 🐸</p>`,
+    ]]),
+  };
+};
+
+const campaignEmail = (campaign: Campaign, unsubscribeUrl: string) => ({
+  subject: campaign.subject,
+  html: emailLayout(campaign.title, formatDate(campaign.publish_at.slice(0, 10)),
+    [["Message", campaign.content.split(/\r?\n/).filter(Boolean).map(line => `<p>${escapeHtml(line)}</p>`).join("")]])
+    .replace("</main>", `<p style="margin:24px 0 0;color:#718078;font-size:12px"><a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe from these emails</a></p></main>`),
+});
+
 function emailLayout(title: string, subtitle: string, sections: [string, string][]) {
   return `<!doctype html><html><body style="margin:0;background:#f3f7f4;color:#20312b;font:16px/1.6 Arial,sans-serif"><main style="max-width:600px;margin:32px auto;padding:32px;background:#fff;border:1px solid #dce8e2;border-radius:14px"><div style="color:#267b65;font-weight:bold;letter-spacing:2px;font-size:12px">HOPTASKS</div><h1 style="margin:12px 0 4px;font-size:27px">${escapeHtml(title)}</h1><p style="margin:0 0 24px;color:#687b72">${escapeHtml(subtitle)}</p>${sections.map(([heading, content]) => `<section style="padding:16px 0;border-top:1px solid #e5eee8"><h2 style="margin:0 0 8px;font-size:17px">${escapeHtml(heading)}</h2>${content}</section>`).join("")}<p style="margin:24px 0 0;color:#718078;font-size:12px">You received this because email updates are enabled in your Hoptasks settings.</p></main></body></html>`;
 }
@@ -156,49 +206,174 @@ const localClock = (now: Date, timezone: string) => {
   };
 };
 
-async function sendEmail(to: string, subject: string, html: string, idempotencyKey: string) {
-  const response = await fetch("https://api.resend.com/emails", {
+function parseMailSender(value: string) {
+  const match = value.trim().match(/^(.*?)\s*<([^<>]+)>$/);
+  const email = (match ? match[2] : value).trim();
+  const name = (match?.[1] || "Hoptasks").trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("MAIL_FROM must be a verified sender email address.");
+  return { name, email };
+}
+
+async function sendEmail(to: string, subject: string, html: string, sender: { name: string; email: string }) {
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${Deno.env.get("RESEND_API_KEY")}`,
+      "api-key": Deno.env.get("BREVO_API_KEY")!,
       "Content-Type": "application/json",
-      "Idempotency-Key": idempotencyKey,
     },
-    body: JSON.stringify({ from: Deno.env.get("MAIL_FROM"), to: [to], subject, html }),
+    body: JSON.stringify({ sender, to: [{ email: to }], subject, htmlContent: html }),
   });
-  if (!response.ok) throw new Error(`Email provider returned ${response.status}: ${(await response.text()).slice(0, 300)}`);
+  if (!response.ok) throw new Error(`Brevo returned ${response.status}: ${(await response.text()).slice(0, 300)}`);
+}
+
+async function deliverTrackedEmail(
+  supabase: ReturnType<typeof createClient>,
+  to: string,
+  email: { subject: string; html: string },
+  sender: { name: string; email: string },
+  claimRpc: string,
+  claimArgs: Record<string, unknown>,
+  markRpc: string,
+  markArgs: Record<string, unknown>,
+  releaseRpc: string,
+  releaseArgs: Record<string, unknown>,
+) {
+  const { data: claimed, error: claimError } = await supabase.rpc(claimRpc, claimArgs);
+  if (claimError) throw new Error(`Could not claim email delivery: ${claimError.message}`);
+  if (!claimed) return false;
+  try {
+    await sendEmail(to, email.subject, email.html, sender);
+  } catch (error) {
+    const { error: releaseError } = await supabase.rpc(releaseRpc, releaseArgs);
+    if (releaseError) throw new Error(`Email failed and retry status could not be released: ${releaseError.message}`);
+    throw error;
+  }
+  const { error: markError } = await supabase.rpc(markRpc, markArgs);
+  if (markError) throw new Error(`Email sent but delivery status could not be saved: ${markError.message}`);
+  return true;
+}
+
+async function unsubscribeSignature(userId: string, preference: "whatsNew" | "newsletter") {
+  const secret = Deno.env.get("EMAIL_CRON_SECRET");
+  if (!secret) throw new Error("Unsubscribe signing secret is not configured.");
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const payload = `${userId}:${preference}`;
+  const signature = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload)));
+  return btoa(String.fromCharCode(...signature)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function unsubscribeResponse(request: Request) {
+  const requestUrl = new URL(request.url);
+  const params = request.method === "GET" ? requestUrl.searchParams : new URLSearchParams(await request.text());
+  const userId = params.get("user") || "";
+  const preference = params.get("type");
+  const signature = params.get("signature") || "";
+  if (!userId || (preference !== "whatsNew" && preference !== "newsletter")) return new Response("Invalid unsubscribe link.", { status: 400 });
+  if (!/^[A-Za-z0-9_-]{43}$/.test(signature)) return new Response("Invalid unsubscribe link.", { status: 403 });
+  const secret = Deno.env.get("EMAIL_CRON_SECRET");
+  if (!secret) return new Response("Unsubscribe service is not configured.", { status: 500 });
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+  const payload = `${userId}:${preference}`;
+  const signatureBytes = Uint8Array.from(atob(signature.replace(/-/g, "+").replace(/_/g, "/") + "="), character => character.charCodeAt(0));
+  const valid = await crypto.subtle.verify("HMAC", key, signatureBytes, new TextEncoder().encode(payload));
+  if (!valid) return new Response("Invalid unsubscribe link.", { status: 403 });
+  if (request.method === "GET") {
+    const action = `${requestUrl.origin}${requestUrl.pathname}?unsubscribe=confirm`;
+    return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><title>Manage email preferences</title><main><h1>Unsubscribe</h1><p>Confirm to stop receiving these emails.</p><form method="post" action="${escapeHtml(action)}"><input type="hidden" name="user" value="${escapeHtml(userId)}"><input type="hidden" name="type" value="${preference}"><input type="hidden" name="signature" value="${signature}"><button type="submit">Unsubscribe</button></form></main></html>`, {
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  }
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: updated, error } = await supabase.rpc("unsubscribe_focus_email", {
+    p_user_id: userId,
+    p_preference: preference,
+  });
+  if (error) return new Response("Could not update email preferences. Please try again later.", { status: 500 });
+  if (!updated) return new Response("Account data was not found.", { status: 404 });
+  return new Response("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><title>Email preferences updated</title><main><h1>You are unsubscribed</h1><p>Your email preferences have been updated. You will continue to receive account and task emails you have enabled separately.</p></main></html>", {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+}
+
+function campaignUnsubscribeUrl(userId: string, preference: "whatsNew" | "newsletter", signature: string) {
+  const url = new URL(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-focus-emails`);
+  url.searchParams.set("user", userId);
+  url.searchParams.set("type", preference);
+  url.searchParams.set("signature", signature);
+  return url.toString();
 }
 
 Deno.serve(async request => {
+  if (request.method === "GET") return await unsubscribeResponse(request);
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
+  if (new URL(request.url).searchParams.has("unsubscribe")) return await unsubscribeResponse(request);
   const cronSecret = Deno.env.get("EMAIL_CRON_SECRET");
   if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
     return new Response("Unauthorized", { status: 401 });
   }
-  if (!Deno.env.get("RESEND_API_KEY") || !Deno.env.get("MAIL_FROM")) {
+  const brevoApiKey = Deno.env.get("BREVO_API_KEY"), mailFrom = Deno.env.get("MAIL_FROM");
+  if (!brevoApiKey || !mailFrom) {
     return Response.json({ error: "Mail provider secrets are not configured." }, { status: 500 });
+  }
+  let sender: { name: string; email: string };
+  try {
+    sender = parseMailSender(mailFrom);
+  } catch (error) {
+    return Response.json({ error: String(error) }, { status: 500 });
   }
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  const { data: welcomeUsers, error: welcomeError } = await supabase.rpc("get_pending_welcome_emails");
+  if (welcomeError) return Response.json({ error: welcomeError.message }, { status: 500 });
   const { data, error } = await supabase.rpc("get_focus_email_subscribers");
   if (error) return Response.json({ error: error.message }, { status: 500 });
+  const { data: campaigns, error: campaignError } = await supabase.rpc("get_due_email_campaigns");
+  if (campaignError) return Response.json({ error: campaignError.message }, { status: 500 });
 
   let sent = 0;
   let skipped = 0;
   const failures: string[] = [];
   const now = new Date();
+  for (const recipient of (welcomeUsers || []) as WelcomeSubscriber[]) {
+    const { data: claimed, error: claimError } = await supabase.rpc("claim_welcome_email_delivery", { p_user_id: recipient.user_id });
+    if (claimError) {
+      failures.push(`${recipient.user_id}: welcome email claim failed: ${claimError.message}`);
+      continue;
+    }
+    if (!claimed) continue;
+    try {
+      const email = welcomeEmail(recipient.name);
+      await sendEmail(recipient.email, email.subject, email.html, sender);
+      const { error: markError } = await supabase.rpc("mark_welcome_email_delivery_sent", { p_user_id: recipient.user_id });
+      if (markError) failures.push(`${recipient.user_id}: welcome email sent but status could not be saved: ${markError.message}`);
+      sent++;
+    } catch (sendError) {
+      const { error: releaseError } = await supabase.rpc("release_welcome_email_delivery", { p_user_id: recipient.user_id });
+      if (releaseError) failures.push(`${recipient.user_id}: welcome email retry cleanup failed: ${releaseError.message}`);
+      failures.push(`${recipient.user_id}: welcome email failed: ${String(sendError)}`);
+    }
+  }
   for (const subscriber of (data || []) as Subscriber[]) {
     const profile = (subscriber.state?.profile || {}) as Profile;
-    const prefs = profile.emailPreferences || {
-      dailyReminder: profile.notifications !== false,
+    const prefs = {
+      dailyReminder: false,
       dailyTime: "08:00",
       weeklyMetrics: false,
       weeklyDay: 1,
       monthlyWins: false,
       monthlyDay: 1,
+      weeklyQuote: false,
+      weeklyQuoteDay: 1,
+      weeklyQuoteTime: "08:00",
+      whatsNew: false,
+      newsletter: false,
+      ...profile.emailPreferences,
     };
+    prefs.dailyReminder = profile.emailPreferences?.dailyReminder ?? profile.notifications !== false;
     const clock = localClock(now, normalizeTimezone(profile.timezone));
     const previousMonthEnd = shiftDate(`${clock.date.slice(0, 7)}-01`, -1);
     const previousMonthStart = `${previousMonthEnd.slice(0, 7)}-01`;
@@ -214,6 +389,20 @@ Deno.serve(async request => {
     }
     if (prefs.monthlyWins && Number(prefs.monthlyDay || 1) === Number(clock.date.slice(8, 10))) {
       candidates.push({ kind: "monthly", period: previousMonthStart, buildEmail: state => monthlyEmail(state, previousMonthStart, previousMonthEnd) });
+    }
+    if (prefs.weeklyQuote && Number(prefs.weeklyQuoteDay || 1) === clock.weekday
+      && /^\d{2}:\d{2}$/.test(prefs.weeklyQuoteTime || "08:00") && (prefs.weeklyQuoteTime || "08:00") === clock.time) {
+      try {
+        const delivered = await deliverTrackedEmail(
+          supabase, subscriber.email, weeklyQuoteEmail(previousWeekStart), sender,
+          "claim_weekly_quote_delivery", { p_user_id: subscriber.user_id, p_period_start: previousWeekStart },
+          "mark_weekly_quote_delivery_sent", { p_user_id: subscriber.user_id, p_period_start: previousWeekStart },
+          "release_weekly_quote_delivery", { p_user_id: subscriber.user_id, p_period_start: previousWeekStart },
+        );
+        if (delivered) sent++; else skipped++;
+      } catch (quoteError) {
+        failures.push(`${subscriber.user_id}: weekly quote failed: ${String(quoteError)}`);
+      }
     }
     for (const candidate of candidates) {
       const recipients: { email: string; key: string; state: Record<string, any> }[] = [
@@ -268,8 +457,7 @@ Deno.serve(async request => {
           continue;
         }
         try {
-          await sendEmail(recipient.email, outgoingEmail.subject, outgoingEmail.html,
-            `focus-${subscriber.user_id}-${recipient.key}-${candidate.kind}-${candidate.period}`);
+          await sendEmail(recipient.email, outgoingEmail.subject, outgoingEmail.html, sender);
           sent++;
           const markRpc = partnerRecipient ? "mark_accountability_email_delivery_sent" : "mark_focus_email_delivery_sent";
           const markArgs = partnerRecipient ? {
@@ -300,6 +488,26 @@ Deno.serve(async request => {
           if (releaseError) failures.push(`${subscriber.user_id}/${recipient.key}: delivery retry cleanup failed: ${releaseError.message}`);
           failures.push(`${subscriber.user_id}/${recipient.key}: ${String(sendError)}`);
         }
+      }
+    }
+  }
+  for (const campaign of (campaigns || []) as Campaign[]) {
+    for (const subscriber of (data || []) as Subscriber[]) {
+      const prefs = subscriber.state?.profile?.emailPreferences || {};
+      const optedIn = campaign.campaign_type === "whats_new" ? prefs.whatsNew === true : prefs.newsletter === true;
+      if (!optedIn) continue;
+      try {
+        const preference = campaign.campaign_type === "whats_new" ? "whatsNew" : "newsletter";
+        const signature = await unsubscribeSignature(subscriber.user_id, preference);
+        const delivered = await deliverTrackedEmail(
+          supabase, subscriber.email, campaignEmail(campaign, campaignUnsubscribeUrl(subscriber.user_id, preference, signature)), sender,
+          "claim_email_campaign_delivery", { p_campaign_id: campaign.id, p_user_id: subscriber.user_id },
+          "mark_email_campaign_delivery_sent", { p_campaign_id: campaign.id, p_user_id: subscriber.user_id },
+          "release_email_campaign_delivery", { p_campaign_id: campaign.id, p_user_id: subscriber.user_id },
+        );
+        if (delivered) sent++; else skipped++;
+      } catch (campaignSendError) {
+        failures.push(`${subscriber.user_id}/${campaign.id}: campaign email failed: ${String(campaignSendError)}`);
       }
     }
   }

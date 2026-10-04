@@ -323,6 +323,12 @@ h3 { margin: 4px 0 0; font: 600 1rem "Space Grotesk", sans-serif; }
 .accountability-goals input { width: 16px; height: 16px; flex: none; padding: 0; }
 .accountability-goals p { margin: 0; color: var(--mut); font-size: 0.7rem; }
 .email-preferences { display: grid; gap: 4px; padding-top: 10px; border-top: 1px solid var(--bd); }
+.email-campaign-admin { margin-top: 16px; }
+.email-campaign-admin > p, .email-campaign-admin > h3 { color: var(--mut); font-size: 0.8rem; }
+.email-campaign-admin h3 { margin: 18px 0 8px; color: var(--tx); font: 600 0.92rem "Space Grotesk", sans-serif; }
+.email-campaign-list { display: grid; gap: 8px; margin-top: 10px; }
+.email-campaign-row { display: flex; justify-content: space-between; gap: 14px; padding: 10px; border: 1px solid var(--bd); border-radius: 8px; font-size: 0.73rem; }
+.email-campaign-row span { color: var(--mut); text-align: right; }
 .email-preferences .section-heading h2 { margin-top: 4px; }
 .email-recipient { margin: 0 0 8px; color: var(--mut); font-size: 0.75rem; overflow-wrap: anywhere; }
 .email-recipient strong { color: var(--tx); font-weight: 600; }

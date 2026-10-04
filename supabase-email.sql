@@ -98,6 +98,51 @@ create table if not exists public.email_campaign_delivery_log (
 
 alter table public.email_campaign_delivery_log enable row level security;
 
+create table if not exists public.email_marketing_unsubscribes (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  preference text not null check (preference in ('whatsNew', 'newsletter')),
+  unsubscribed_at timestamptz not null default now(),
+  primary key (user_id, preference)
+);
+
+alter table public.email_marketing_unsubscribes enable row level security;
+revoke all on table public.email_marketing_unsubscribes from anon, authenticated;
+grant all on table public.email_marketing_unsubscribes to service_role;
+
+create table if not exists public.email_marketing_rollout (
+  rollout_key text primary key,
+  applied_at timestamptz not null default now()
+);
+
+alter table public.email_marketing_rollout enable row level security;
+revoke all on table public.email_marketing_rollout from anon, authenticated;
+grant all on table public.email_marketing_rollout to service_role;
+
+do $$
+begin
+  if not exists (
+    select 1 from public.email_marketing_rollout
+    where rollout_key = 'default_campaign_opt_in'
+  ) then
+    update public.focus_state
+    set state = jsonb_set(
+      coalesce(state, '{}'::jsonb),
+      '{profile}',
+      (case when jsonb_typeof(state->'profile') = 'object' then state->'profile' else '{}'::jsonb end) || jsonb_build_object(
+        'emailPreferences',
+        (case when jsonb_typeof(state->'profile'->'emailPreferences') = 'object' then state->'profile'->'emailPreferences' else '{}'::jsonb end)
+          || jsonb_build_object('whatsNew', true, 'newsletter', true)
+      ),
+      true
+    ),
+    updated_at = now();
+
+    insert into public.email_marketing_rollout (rollout_key)
+    values ('default_campaign_opt_in');
+  end if;
+end;
+$$;
+
 do $$
 begin
   if not exists (select 1 from pg_catalog.pg_policies where schemaname='public' and tablename='email_campaigns' and policyname='Email admins read campaigns') then
@@ -160,6 +205,11 @@ begin
     raise exception 'Unsupported email preference';
   end if;
 
+  insert into public.email_marketing_unsubscribes (user_id, preference)
+  values (p_user_id, p_preference)
+  on conflict (user_id, preference) do update
+    set unsubscribed_at = now();
+
   update public.focus_state
   set state = jsonb_set(
     coalesce(state, '{}'::jsonb),
@@ -178,6 +228,48 @@ $$;
 
 revoke all on function public.unsubscribe_focus_email(uuid, text) from public, anon, authenticated;
 grant execute on function public.unsubscribe_focus_email(uuid, text) to service_role;
+
+create or replace function public.get_email_marketing_unsubscribes()
+returns table (user_id uuid, preference text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select u.user_id, u.preference
+  from public.email_marketing_unsubscribes as u;
+$$;
+
+create or replace function public.set_email_marketing_preference(p_preference text, p_enabled boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+  if p_preference is null or p_preference not in ('whatsNew', 'newsletter') then
+    raise exception 'Unsupported email preference';
+  end if;
+
+  if p_enabled then
+    delete from public.email_marketing_unsubscribes
+    where user_id = auth.uid() and preference = p_preference;
+  else
+    insert into public.email_marketing_unsubscribes (user_id, preference)
+    values (auth.uid(), p_preference)
+    on conflict (user_id, preference) do update
+      set unsubscribed_at = now();
+  end if;
+end;
+$$;
+
+revoke all on function public.get_email_marketing_unsubscribes() from public, anon, authenticated;
+grant execute on function public.get_email_marketing_unsubscribes() to service_role;
+revoke all on function public.set_email_marketing_preference(text, boolean) from public, anon;
+grant execute on function public.set_email_marketing_preference(text, boolean) to authenticated;
 
 create or replace function public.claim_focus_email_delivery(
   p_user_id uuid,

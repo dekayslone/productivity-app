@@ -333,6 +333,11 @@ Deno.serve(async request => {
   if (error) return Response.json({ error: error.message }, { status: 500 });
   const { data: campaigns, error: campaignError } = await supabase.rpc("get_due_email_campaigns");
   if (campaignError) return Response.json({ error: campaignError.message }, { status: 500 });
+  const { data: marketingUnsubscribes, error: unsubscribeError } = await supabase.rpc("get_email_marketing_unsubscribes");
+  if (unsubscribeError) return Response.json({ error: unsubscribeError.message }, { status: 500 });
+  const unsubscribedPreferences = new Set(
+    (marketingUnsubscribes || []).map((entry: { user_id: string; preference: string }) => `${entry.user_id}:${entry.preference}`),
+  );
 
   let sent = 0;
   let skipped = 0;
@@ -373,6 +378,8 @@ Deno.serve(async request => {
       newsletter: false,
       ...profile.emailPreferences,
     };
+    prefs.whatsNew = profile.emailPreferences?.whatsNew !== false;
+    prefs.newsletter = profile.emailPreferences?.newsletter !== false;
     prefs.dailyReminder = profile.emailPreferences?.dailyReminder ?? profile.notifications !== false;
     const clock = localClock(now, normalizeTimezone(profile.timezone));
     const previousMonthEnd = shiftDate(`${clock.date.slice(0, 7)}-01`, -1);
@@ -494,10 +501,9 @@ Deno.serve(async request => {
   for (const campaign of (campaigns || []) as Campaign[]) {
     for (const subscriber of (data || []) as Subscriber[]) {
       const prefs = subscriber.state?.profile?.emailPreferences || {};
-      const optedIn = campaign.campaign_type === "whats_new" ? prefs.whatsNew === true : prefs.newsletter === true;
-      if (!optedIn) continue;
+      const preference = campaign.campaign_type === "whats_new" ? "whatsNew" : "newsletter";
+      if (prefs[preference] === false || unsubscribedPreferences.has(`${subscriber.user_id}:${preference}`)) continue;
       try {
-        const preference = campaign.campaign_type === "whats_new" ? "whatsNew" : "newsletter";
         const signature = await unsubscribeSignature(subscriber.user_id, preference);
         const delivered = await deliverTrackedEmail(
           supabase, subscriber.email, campaignEmail(campaign, campaignUnsubscribeUrl(subscriber.user_id, preference, signature)), sender,

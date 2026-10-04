@@ -15,14 +15,14 @@ When signed in, workspace snapshots are also synced to the user's Supabase `focu
 - Weekly progress: tasks completed versus due, completion rate, goals progressed, deadlines met, and habit consistency for the previous Monday through Sunday. Focus-time and capacity metrics are not included because the app does not track time.
 - Weekly quote: a separate encouragement email with its own opt-in, weekday, and send time.
 - Monthly wins: completed tasks, finished goals, habit sessions, and wins recorded in the monthly review for the previous month.
-- Product announcements ("What's new") and newsletters: admins write plain-text content and choose a publish date/time. Each category has a separate optional opt-in; only confirmed users who opted into that category receive it. Emails include a signed unsubscribe link with a confirmation step.
+- Product announcements ("What's new") and newsletters: admins write plain-text content and choose a publish date/time. Both preferences default to enabled for new users, and the migration opts existing profiles in once. Users can turn either one off in Profile or follow that category's signed unsubscribe link; saving Profile with the category enabled opts back in.
 
 Messages go to the confirmed email address on the user's Supabase account. Accountability partners can be added in Profile and assigned one or more goals. They receive the enabled daily, weekly, and monthly messages on the same schedule and timezone as the account owner, but only with tasks and metrics from their assigned goals; workspace habits and review notes are not shared. Only add partners who have agreed to receive these emails. The scheduler checks once per minute, so delivery may be up to a minute after the selected time.
 
 ## Supabase and Brevo
 
 1. Create a Brevo account and an API key. Add a sender email address you control under **Settings > Senders & IP > Senders**, then verify it. For reliable delivery, authenticate the sender's domain by adding Brevo's requested DNS records. See [Brevo's sender and domain guide](https://developers.brevo.com/docs/getting-started-with-senders-and-domains).
-2. Run (or re-run) `supabase-email.sql` in the Supabase SQL Editor. It creates new email queues, campaign and delivery tables, trigger/functions, and access policies; it does not drop existing tables, functions, constraints, or delivery rows. The project must already have the `focus_state` table from `supabase-schema.sql` or `supabase-cloud-state.sql`.
+2. Run (or re-run) `supabase-email.sql` in the Supabase SQL Editor. It creates new email queues, campaign and delivery tables, trigger/functions, and access policies; it does not drop existing tables, functions, constraints, or delivery rows. The project must already have the `focus_state` table from `supabase-schema.sql` or `supabase-cloud-state.sql`. The campaign opt-in backfill runs once, including when this migration is re-run.
 3. To enable the campaign composer for your own account, replace the email below with your own sign-in address and run this targeted statement:
 
    ```sql

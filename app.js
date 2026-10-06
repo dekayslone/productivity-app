@@ -94,6 +94,7 @@ function notificationCenter(){
 }
 const ok=(h,d)=>(h.log[d]||0)>=(h.kind==="weekly"?1:(h.target||1));
 const STREAK_FREEZE_DAYS=3;
+const STREAK_FREEZE_START_DATE="2026-10-06";
 function streak(h){
  const today=td(),endDate=ok(h,today)?today:addDays(today,-1);
  const oldestSuccess=Object.keys(h.log||{}).filter(date=>date<=endDate&&ok(h,date)).sort()[0];
@@ -104,7 +105,7 @@ function streak(h){
    days++;
    for(const[month,count]of pendingMisses)monthlyMisses.set(month,(monthlyMisses.get(month)||0)+count);
    pendingDates.forEach(date=>frozenDates.add(date));pendingMisses.clear();pendingDates.length=0;
-  }else{
+  }else if(d>=STREAK_FREEZE_START_DATE){
    const month=d.slice(0,7),used=(monthlyMisses.get(month)||0)+(pendingMisses.get(month)||0);
    if(used>=STREAK_FREEZE_DAYS)break;
    pendingMisses.set(month,(pendingMisses.get(month)||0)+1);pendingDates.push(d);
@@ -278,7 +279,7 @@ function scheduler(){
 
 function habits(){
   const dailyHabits=S.habits.filter(habit=>habit.kind!=="weekly");
-  let h=`<h1>Habits</h1><div class="sub">Daily practices that build streaks. Each habit gets 3 automatic freeze days per calendar month; the allowance renews at the start of each month.</div>`;
+  let h=`<h1>Habits</h1><div class="sub">Daily practices that build streaks. Monthly freeze tracking starts October 6, 2026; each habit gets 3 automatic freeze days per calendar month, renewing at the start of each month.</div>`;
   if(dailyHabits.length)h+=`<section class="card streak-freeze-summary" aria-label="Monthly streak freeze balances"><div class="streak-freeze-summary-head"><i data-lucide="snowflake"></i><div><strong>Monthly streak freezes</strong><span>Unused days renew at the start of each month. Completed days count normally; freezes cover missed days only.</span></div></div><div class="streak-freeze-balances">${dailyHabits.map(habit=>{const balance=streak(habit);return `<div class="streak-freeze-balance"><span>${esc(habit.name)}</span><strong>${balance.freezeDaysRemaining} of ${STREAK_FREEZE_DAYS} left</strong></div>`}).join("")}</div></section>`;
   h+=`
   <form class="add" data-f="habit"><input type="text" name="t" placeholder="e.g. Prayer, Bible reading, Book" required><input type="number" name="tg" min="1" placeholder="Daily target" style="width:110px"><select name="u" aria-label="Habit unit"><option value="">Count</option><option value="minutes">Minutes</option><option value="chapters">Chapters</option><option value="pages">Pages</option><option value="sessions">Sessions</option><option value="repetitions">Repetitions</option></select>${catSel}<button>Add</button></form>`;
@@ -584,5 +585,4 @@ checkpointDay();
 render();
 if(localStorageReadError)toast("Saved data could not be read. A recovery copy was kept if storage allowed.");
 setInterval(()=>{const current=td();if(S.meta?.lastDay&&S.meta.lastDay!==current){checkpointDay(current);render();}},60000);
-setInterval(()=>{if(document.getElementById("focus-thought-text"))rotateFocusThought()},30000);
 initAuth();

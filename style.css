@@ -496,19 +496,26 @@ h3 { margin: 4px 0 0; font: 600 1rem "Space Grotesk", sans-serif; }
 	.settings-grid, .two-col { grid-template-columns: 1fr; }
 	.focus-thought-card { padding: 14px; }
 	.focus-thought-card blockquote { min-height: 64px; font-size: 1rem; }
-	.profile-cover { height: 86px; }
-	.profile-identity { flex-wrap: wrap; gap: 10px; padding: 0 15px 12px; margin-top: -35px; }
-	.profile-avatar { width: 70px; height: 70px; border-width: 4px; }
-	.profile-photo-wrap { gap: 3px; }
-	.profile-photo-upload, .profile-photo-remove { min-height: 26px; padding: 3px 6px; font-size: .61rem; }
-	.profile-heading { flex: 1 1 calc(100% - 84px); padding-bottom: 0; }
-	.profile-heading h1 { font-size: 1.45rem; }
-	.profile-save-button { min-height: 38px; margin: 4px 0 0 80px; }
-	.profile-stats { padding: 11px 12px; }
-	.profile-stats span { font-size: .62rem; }
+	.profile-page { gap: 12px; }
+	.profile-cover { height: 92px; }
+	.profile-identity { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; gap: 10px 12px; padding: 0 15px 15px; margin-top: -31px; }
+	.profile-avatar { width: 72px; height: 72px; border-width: 4px; }
+	.profile-photo-wrap { width: 76px; gap: 4px; }
+	.profile-photo-upload, .profile-photo-remove { width: 100%; min-height: 32px; padding: 4px 3px; font-size: .62rem; line-height: 1.2; white-space: normal; }
+	.profile-heading { padding-bottom: 0; }
+	.profile-heading h1 { font-size: clamp(1.2rem, 6vw, 1.55rem); overflow-wrap: anywhere; }
+	.profile-subtitle, .profile-email { font-size: .7rem; line-height: 1.4; }
+	.profile-save-button { grid-column: 1 / -1; width: 100%; min-height: 44px; margin: 2px 0 0; }
+	.profile-stats { padding: 12px 8px; }
+	.profile-stats > div { min-width: 0; }
+	.profile-stats span { font-size: .62rem; line-height: 1.25; text-align: center; }
+	.profile-shortcuts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; overflow: visible; padding: 0; }
+	.profile-shortcuts a { min-width: 0; min-height: 44px; gap: 6px; padding: 8px 9px; border-radius: 12px; font-size: .68rem; line-height: 1.25; }
+	.profile-shortcuts svg { flex: none; }
 	.settings-grid { grid-template-columns: 1fr; }
 	.profile-details, .email-card, .workspace-card { padding: 15px; }
-	.profile-form-actions { bottom: calc(92px + env(safe-area-inset-bottom)); }
+	.profile-form-actions { position: static; margin: 2px 0 0; padding: 0; background: transparent; border: 0; box-shadow: none; backdrop-filter: none; }
+	.profile-form-actions button { width: 100%; min-height: 44px; justify-content: center; }
 	.theme-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.email-setting { grid-template-columns: 1fr; }
 	.email-setting p { grid-column: auto; }
@@ -530,6 +537,14 @@ h3 { margin: 4px 0 0; font: 600 1rem "Space Grotesk", sans-serif; }
 	.stats .card { padding: 12px 5px; }
 	.stats .mut { font-size: 0.63rem; line-height: 1.2; }
 	.big { font-size: 1.45rem; }
+	.profile-identity { grid-template-columns: 68px minmax(0, 1fr); gap: 9px; padding-right: 12px; padding-left: 12px; }
+	.profile-photo-wrap { width: 68px; }
+	.profile-avatar { width: 66px; height: 66px; }
+	.profile-photo-upload, .profile-photo-remove { font-size: .59rem; }
+	.profile-heading h1 { font-size: clamp(1.1rem, 6vw, 1.35rem); }
+	.profile-stats { padding-right: 5px; padding-left: 5px; }
+	.profile-stats span { font-size: .58rem; }
+	.profile-details, .email-card, .workspace-card { padding: 13px; }
 }
 
 @keyframes fade-up {

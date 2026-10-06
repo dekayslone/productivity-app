@@ -319,6 +319,16 @@ h3 { margin: 4px 0 0; font: 600 1rem "Space Grotesk", sans-serif; }
 .profile-form-actions button { display: inline-flex; align-items: center; gap: 7px; }
 .profile-side-column .mini-stat strong { max-width: 65%; text-align: right; overflow-wrap: anywhere; }
 .avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.streak-freeze-summary { display: grid; gap: 13px; padding: 15px 17px; }
+.streak-freeze-summary-head { display: flex; align-items: center; gap: 10px; color: var(--ac-deep); }
+.streak-freeze-summary-head > svg { width: 19px; height: 19px; flex: none; }
+.streak-freeze-summary-head > div { display: grid; gap: 2px; }
+.streak-freeze-summary-head strong { font-size: .82rem; }
+.streak-freeze-summary-head span { color: var(--mut); font-size: .7rem; }
+.streak-freeze-balances { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 7px; }
+.streak-freeze-balance { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 9px; padding: 8px 10px; background: color-mix(in srgb, var(--ac2) 45%, var(--card)); border: 1px solid var(--bd); border-radius: 9px; }
+.streak-freeze-balance span { min-width: 0; color: var(--tx); font-size: .72rem; overflow-wrap: anywhere; }
+.streak-freeze-balance strong { flex: none; color: var(--ac-deep); font-size: .68rem; white-space: nowrap; }
 .settings-form { display: grid; gap: 14px; margin-top: 12px; }
 .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .settings-form label { display: grid; gap: 7px; color: var(--mut); font-size: 0.72rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }

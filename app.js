@@ -5,15 +5,22 @@ let emailCampaigns=[],emailCampaignsLoading=false,emailCampaignsLoaded=false;
 async function loadEmailCampaigns(){if(!db||emailCampaignsLoading||emailCampaignsLoaded)return;emailCampaignsLoading=true;const{data,error}=await db.from("email_campaigns").select("id,campaign_type,title,subject,publish_at").order("publish_at",{ascending:false}).limit(12);emailCampaignsLoading=false;if(error){toast("Could not load email campaigns. Check admin access.");return}emailCampaigns=data||[];emailCampaignsLoaded=true;if(tab==="profile")render()}
 const K="focus_v1";let S,localStorageReadError=false;
 try{const storedState=localStorage.getItem(K);if(storedState)S=JSON.parse(storedState)}catch(e){localStorageReadError=true;try{const recoverableState=localStorage.getItem(K);if(recoverableState)localStorage.setItem(`${K}_recovery`,recoverableState)}catch(e){}}
-S=S||{goals:[],habits:[],reviews:[]};
-S.tasks=S.tasks||[];
-S.profile=S.profile||{name:"Your Name",email:"you@example.com",role:"Productive builder",theme:"forest",timezone:"UTC",bio:"Build deliberate momentum every day.",notifications:true};
-S.meta=S.meta||{lastDay:null};
-S.history=S.history||{};
-S.weeklyHistory=S.weeklyHistory||{};
 function emptyState(user=authUser){return{goals:[],habits:[],reviews:[],tasks:[],profile:{name:"Your Name",email:user?.email||"",role:"Productive builder",theme:"forest",timezone:"UTC",bio:"",notifications:true},meta:{lastDay:null},history:{},weeklyHistory:{}}}
-function normalizeState(state,user){const normalized=state&&typeof state==="object"&&!Array.isArray(state)?state:emptyState(user);normalized.goals=Array.isArray(normalized.goals)?normalized.goals:[];normalized.habits=Array.isArray(normalized.habits)?normalized.habits:[];normalized.reviews=Array.isArray(normalized.reviews)?normalized.reviews:[];normalized.tasks=Array.isArray(normalized.tasks)?normalized.tasks:[];normalized.profile={...emptyState(user).profile,...(normalized.profile&&typeof normalized.profile==="object"?normalized.profile:{})};normalized.meta=normalized.meta&&typeof normalized.meta==="object"?normalized.meta:{lastDay:null};normalized.history=normalized.history&&typeof normalized.history==="object"?normalized.history:{};normalized.weeklyHistory=normalized.weeklyHistory&&typeof normalized.weeklyHistory==="object"?normalized.weeklyHistory:{};return normalized}
-let tab="today",gm=null,mem={},analyticsFocus=null,editingGoal=null,editingTask=null,schedulerDate=null,analyticsMonth=null,authUser=null,cloudHydrated=false,authMode="login",weeklyPreviewOpen=false,mobileMoreOpen=false,notificationOpen=false,reviewRecap=null,reviewRecapPage=0,storagePersistenceRequested=false,cloudWriteQueue=Promise.resolve(),pendingCloudSnapshot=null,pendingCloudLocalSaved=true;
+const isRecord=value=>value!==null&&typeof value==="object"&&!Array.isArray(value);
+function normalizeState(state,user){
+ const normalized=isRecord(state)?state:emptyState(user);
+ normalized.goals=(Array.isArray(normalized.goals)?normalized.goals:[]).filter(isRecord).map(goal=>({...goal,projects:(Array.isArray(goal.projects)?goal.projects:[]).filter(isRecord).map(project=>({...project,tasks:(Array.isArray(project.tasks)?project.tasks:[]).filter(isRecord)}))}));
+ normalized.tasks=(Array.isArray(normalized.tasks)?normalized.tasks:[]).filter(isRecord);
+ normalized.habits=(Array.isArray(normalized.habits)?normalized.habits:[]).filter(isRecord).map(habit=>({...habit,name:String(habit.name||"Untitled habit"),target:Math.max(1,Number(habit.target)||1),log:isRecord(habit.log)?habit.log:{}}));
+ normalized.reviews=(Array.isArray(normalized.reviews)?normalized.reviews:[]).filter(isRecord);
+ normalized.profile={...emptyState(user).profile,...(isRecord(normalized.profile)?normalized.profile:{})};
+ normalized.meta=isRecord(normalized.meta)?normalized.meta:{lastDay:null};
+ normalized.history=isRecord(normalized.history)?normalized.history:{};
+ normalized.weeklyHistory=isRecord(normalized.weeklyHistory)?normalized.weeklyHistory:{};
+ return normalized
+}
+let tab="today",gm=null,mem={},analyticsFocus=null,editingGoal=null,editingTask=null,schedulerDate=null,analyticsMonth=null,authUser=null,cloudHydrated=false,authMode="login",weeklyPreviewOpen=false,mobileMoreOpen=false,notificationOpen=false,notificationFilter="all",reviewRecap=null,reviewRecapPage=0,storagePersistenceRequested=false,cloudWriteQueue=Promise.resolve(),pendingCloudSnapshot=null,pendingCloudLocalSaved=true,appNotificationShownFor=null,appNotificationStorageWarningFor=null;
+S=normalizeState(S,null);
 const save=()=>{if(authUser){S.meta=S.meta||{};S.meta.cloudUserId=authUser.id;S.meta.updatedAt=new Date().toISOString()}let snapshot;try{snapshot=JSON.stringify(S)}catch(e){toast("Could not prepare this change for saving. Keep this page open and try again.");return false}let localSaved=true;try{localStorage.setItem(authUser?`${K}_${authUser.id}`:K,snapshot)}catch(e){localSaved=false;toast("Device storage is unavailable. Cloud sync will be attempted.")}if(authUser&&cloudHydrated)syncCloud(snapshot,localSaved);return localSaved};
 function requestStoragePersistence(){if(storagePersistenceRequested)return;storagePersistenceRequested=true;try{navigator.storage?.persist?.().catch(()=>{})}catch(e){}}
 document.addEventListener("pointerdown",requestStoragePersistence,{once:true});
@@ -26,6 +33,7 @@ async function syncCloud(snapshot=JSON.stringify(S),localSaved=true){if(!db||!au
 window.addEventListener("online",()=>{if(authUser&&cloudHydrated&&pendingCloudSnapshot)syncCloud(pendingCloudSnapshot,pendingCloudLocalSaved)});
 async function loadCloud(){
   if(!db||!authUser)return;
+  if(cloudHydrated&&S.meta?.cloudUserId===authUser.id&&!document.body.classList.contains("auth-mode"))return;
   const user=authUser,storageKey=`${K}_${user.id}`;
   let localState=null,onboardingPending=false;
   cloudHydrated=false;pendingCloudSnapshot=null;
@@ -36,7 +44,11 @@ async function loadCloud(){
       const legacy=localStorage.getItem(K);
       if(legacy){const parsed=JSON.parse(legacy);if(parsed?.meta?.cloudUserId===user.id)localState=parsed}
     }
-  }catch(e){toast("Could not read this account's saved data from this device.")}
+  }catch(e){
+    let recoveryCopyKept=false;
+    try{const saved=localStorage.getItem(storageKey);if(saved){localStorage.setItem(`${storageKey}_recovery`,saved);recoveryCopyKept=true}}catch(storageError){toast(`Could not preserve this account’s local recovery copy: ${storageError instanceof Error?storageError.message:String(storageError)}`)}
+    toast(recoveryCopyKept?"This account’s local data could not be read; a recovery copy was kept.":"This account’s local data could not be read. No usable local recovery copy is available.");
+  }
   S=normalizeState(localState,user);
   onboardingPending=user.user_metadata?.onboarding_required===true&&S.profile.onboardingCompletedFor!==user.id;
   try{
@@ -51,21 +63,24 @@ async function loadCloud(){
     S.meta.cloudUserId=user.id;S.meta.updatedAt=S.meta.updatedAt||data?.updated_at||new Date().toISOString();
     updateRewards();
     let localSaved=true;try{localStorage.setItem(storageKey,JSON.stringify(S))}catch(e){localSaved=false;toast("Cloud data loaded but could not be saved on this device.")}
-    cloudHydrated=true;await syncCloud(JSON.stringify(S),localSaved);
+    cloudHydrated=true;syncCloud(JSON.stringify(S),localSaved);
     if(onboardingPending){showOnboarding();return}
-    document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();
+    document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();checkDailyAppNotification();
   }catch(e){
     if(!authUser||authUser.id!==user.id)return;
+    if(!localState){cloudHydrated=false;showCloudLoadError(`Could not load this account’s cloud data: ${e instanceof Error?e.message:String(e)}. No local backup was found, and no empty data has been saved.`);return}
     toast("Could not load cloud data. Using this account's saved data.");
     S=normalizeState(onboardingPending?emptyState(user):S,user);S.profile.email=S.profile.email||user.email||"";S.meta.cloudUserId=user.id;S.meta.updatedAt=S.meta.updatedAt||new Date().toISOString();
     try{localStorage.setItem(storageKey,JSON.stringify(S))}catch(storageError){toast("This account's data could not be saved on this device.")}
     if(onboardingPending){showOnboarding();return}
-    document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();
+    document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();checkDailyAppNotification();
   }
 }
+function showAppLoading(message="Loading your workspace…"){document.body.classList.add("auth-mode");document.getElementById("auth").innerHTML=`<div class="auth-shell"><section class="auth-card auth-loading" role="status" aria-live="polite"><span class="brand-mark"><i data-lucide="sparkles"></i></span><h1>${esc(message)}</h1><p>Your data stays private while we check your account.</p><span class="loading-indicator"></span></section></div>`;if(window.lucide)lucide.createIcons()}
+function showCloudLoadError(message){document.body.classList.add("auth-mode");document.getElementById("auth").innerHTML=`<div class="auth-shell"><section class="auth-card cloud-load-error" role="alert"><span class="brand-mark"><i data-lucide="cloud-off"></i></span><h1>We couldn’t load your workspace.</h1><p>${esc(message)}</p><button type="button" data-a="retry-cloud-load">Try again</button><button type="button" class="ghost auth-switch" data-a="logout">Sign out</button></section></div>`;if(window.lucide)lucide.createIcons()}
 function showOnboarding(message=""){document.body.classList.add("auth-mode");const root=document.getElementById("auth");root.innerHTML=`<div class="auth-shell"><form class="auth-card onboarding-card" data-f="onboarding"><div class="auth-brand"><span class="brand-mark"><i data-lucide="sparkles"></i></span><strong>Hoptasks</strong></div><span class="eyebrow">YOUR PROFILE</span><h1>Let’s make this yours.</h1><p>Tell us a little about yourself before you get started.</p>${message?`<div class="auth-message">${esc(message)}</div>`:""}<div class="onboarding-name-fields"><label>First name<input type="text" name="firstName" required autocomplete="given-name"></label><label>Last name<input type="text" name="lastName" required autocomplete="family-name"></label></div><label>How did you hear about us?<select name="referralSource" required><option value="" disabled selected>Choose an option</option>${REFERRAL_SOURCES.map(source=>`<option value="${esc(source)}">${esc(source)}</option>`).join("")}</select></label><label>One goal you’d like to work toward (optional)<input type="text" name="firstGoal" autocomplete="off"></label><button type="submit">Save and get started</button></form></div>`;if(window.lucide)lucide.createIcons()}
-function showAuth(message=""){document.body.classList.add("auth-mode");const reset=authMode==="reset",update=authMode==="update",login=authMode==="login",root=document.getElementById("auth");root.innerHTML=`<div class="auth-shell"><div class="auth-layout"><form class="auth-card" data-f="auth"><div class="auth-brand"><span class="brand-mark"><i data-lucide="sparkles"></i></span><strong>Hoptasks</strong></div><span class="eyebrow">${update?"SECURE RECOVERY":reset?"PASSWORD RESET":login?"WELCOME BACK":"CREATE YOUR ACCOUNT"}</span><h1>${update?"Choose a new password.":reset?"Reset your password.":login?"Return to your rhythm.":"Start your focus system."}</h1><p>${update?"Create a new password for your Focus account.":reset?"Enter your email and we’ll send you a secure reset link.":login?"Sign in to sync your goals, tasks, habits, and reviews.":"Create an account to keep your progress safe across devices."}</p>${message?`<div class="auth-message">${esc(message)}</div>`:""}${reset?`<label>Email<input type="email" name="email" value="you@example.com" required autocomplete="email"></label>`:""}${update?`<label>New password<input type="password" name="password" required minlength="6" autocomplete="new-password"></label><label>Confirm password<input type="password" name="passwordConfirm" required minlength="6" autocomplete="new-password"></label>`:reset?"":`<label>Email<input type="email" name="email" value="you@example.com" required autocomplete="email"></label><label>Password<input type="password" name="password" required minlength="6" autocomplete="${login?"current-password":"new-password"}"></label>`}<button type="submit">${update?"Save new password":reset?"Send reset link":login?"Sign in":"Create account"}</button>${update?"":reset?`<button type="button" class="ghost auth-switch" data-a="auth-back">Back to sign in</button>`:`${login?`<button type="button" class="auth-forgot" data-a="auth-reset">Forgot your password?</button>`:""}<button type="button" class="ghost auth-switch" data-a="auth-switch">${login?"Create a new account":"I already have an account"}</button>`}</form><aside class="auth-aside"><span class="auth-quote-mark">“</span><blockquote>Start with the task that matters most, and let focused action create momentum.</blockquote><div class="auth-quote-source"><span class="auth-avatar">F</span><span><strong>Hoptasks system</strong><small>Built for deliberate progress</small></span></div></aside></div></div>`;if(window.lucide)lucide.createIcons()}
-async function initAuth(){if(!db){toast("Supabase is unavailable. Using local data.");return}try{const{data}=await db.auth.getSession();if(data.session){authUser=data.session.user;if(window.location.hash.includes("type=recovery")){authMode="update";showAuth()}else await loadCloud()}else showAuth();db.auth.onAuthStateChange(async(event,session)=>{if(session){authUser=session.user;if(event==="PASSWORD_RECOVERY"){authMode="update";showAuth()}else if(authMode!=="update")await loadCloud()}else{authUser=null;cloudHydrated=false;document.body.classList.add("auth-mode");showAuth()}})}catch(e){toast("Could not connect to Supabase. Your local data is safe.")}}
+function showAuth(message=""){closeAppNotification();const celebration=document.getElementById("celebration");if(celebration){celebration.classList.remove("is-visible");celebration.innerHTML=""}document.body.classList.add("auth-mode");const reset=authMode==="reset",update=authMode==="update",login=authMode==="login",root=document.getElementById("auth");root.innerHTML=`<div class="auth-shell"><div class="auth-layout"><form class="auth-card" data-f="auth"><div class="auth-brand"><span class="brand-mark"><i data-lucide="sparkles"></i></span><strong>Hoptasks</strong></div><span class="eyebrow">${update?"SECURE RECOVERY":reset?"PASSWORD RESET":login?"WELCOME BACK":"CREATE YOUR ACCOUNT"}</span><h1>${update?"Choose a new password.":reset?"Reset your password.":login?"Return to your rhythm.":"Start your focus system."}</h1><p>${update?"Create a new password for your Focus account.":reset?"Enter your email and we’ll send you a secure reset link.":login?"Sign in to sync your goals, tasks, habits, and reviews.":"Create an account to keep your progress safe across devices."}</p>${message?`<div class="auth-message">${esc(message)}</div>`:""}${reset?`<label>Email<input type="email" name="email" value="you@example.com" required autocomplete="email"></label>`:""}${update?`<label>New password<input type="password" name="password" required minlength="6" autocomplete="new-password"></label><label>Confirm password<input type="password" name="passwordConfirm" required minlength="6" autocomplete="new-password"></label>`:reset?"":`<label>Email<input type="email" name="email" value="you@example.com" required autocomplete="email"></label><label>Password<input type="password" name="password" required minlength="6" autocomplete="${login?"current-password":"new-password"}"></label>`}<button type="submit">${update?"Save new password":reset?"Send reset link":login?"Sign in":"Create account"}</button>${update?"":reset?`<button type="button" class="ghost auth-switch" data-a="auth-back">Back to sign in</button>`:`${login?`<button type="button" class="auth-forgot" data-a="auth-reset">Forgot your password?</button>`:""}<button type="button" class="ghost auth-switch" data-a="auth-switch">${login?"Create a new account":"I already have an account"}</button>`}</form><aside class="auth-aside"><span class="auth-quote-mark">“</span><blockquote>Start with the task that matters most, and let focused action create momentum.</blockquote><div class="auth-quote-source"><span class="auth-avatar">F</span><span><strong>Hoptasks system</strong><small>Built for deliberate progress</small></span></div></aside></div></div>`;if(window.lucide)lucide.createIcons()}
+async function initAuth(){if(!db){toast("Supabase is unavailable. Using local data.");return}showAppLoading("Checking your account…");try{const{data,error}=await db.auth.getSession();if(error)throw error;if(data.session){authUser=data.session.user;if(window.location.hash.includes("type=recovery")){authMode="update";showAuth()}else await loadCloud()}else showAuth();db.auth.onAuthStateChange((event,session)=>{if(session){const accountChanged=authUser?.id!==session.user.id;authUser=session.user;if(event==="PASSWORD_RECOVERY"){authMode="update";showAuth()}else if(authMode!=="update"){if(accountChanged){cloudHydrated=false;showAppLoading("Loading your workspace…")}setTimeout(()=>{if(authUser?.id===session.user.id)loadCloud()},0)}}else{authUser=null;cloudHydrated=false;document.body.classList.add("auth-mode");showAuth()}})}catch(e){document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();toast(`Could not connect to Supabase: ${e instanceof Error?e.message:String(e)}. Using local data.`)}}
 const authErrorMessage=(error,mode)=>{const msg=String(error?.message||error||"").trim();if(!msg)return "Authentication is unavailable. Please try again.";const lower=msg.toLowerCase();if(lower.includes("rate limit")||lower.includes("too many requests")||lower.includes("email rate limit exceeded")){return mode==="reset"?"Too many reset emails were sent. Please wait a few minutes before requesting another one.":"Too many attempts were made. Please wait a few minutes and try again."}if(lower.includes("invalid login credentials")||lower.includes("user not found")){return "Incorrect email or password."}if(lower.includes("passwords do not match")){return "The passwords do not match."}if(lower.includes("already registered")||lower.includes("already exists")){return "An account already exists for this email."}return msg;};
 const uid=()=>crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2,9);
 const ld=d=>d.toLocaleDateString("en-CA");
@@ -83,14 +98,53 @@ const prog=g=>{const t=tasksOf(g);return t.length?Math.round(100*t.filter(x=>x.d
 const allTasks=()=>[...S.goals.flatMap(g=>g.projects.flatMap(p=>p.tasks.map(t=>({t,g,p})))),...(S.tasks||[]).map(t=>({t,g:S.goals.find(goal=>goal.id===t.goalId)||null,p:null}))];
 function getNotifications(){
   const today=td(),tasks=allTasks().filter(({t})=>!t.done&&t.due&&t.due<=today).sort((a,b)=>a.t.due.localeCompare(b.t.due));
-  const taskItems=tasks.map(({t})=>({id:`task-${t.id}`,icon:t.due<today?"triangle-alert":"calendar-clock",title:t.due<today?"Overdue task":"Due today",detail:`${t.t} · ${new Date(`${t.due}T12:00`).toLocaleDateString(undefined,{month:"short",day:"numeric"})}`,tab:"tasks"}));
-  const habitItems=S.habits.filter(habit=>habit.kind!=="weekly"&&!ok(habit,today)).map(habit=>({id:`habit-${habit.id}`,icon:"repeat-2",title:"Daily habit still open",detail:habit.name,tab:"habits"}));
-  const badgeItems=(S.gamification?.badges||[]).filter(badge=>badge.earnedOn===today).map(badge=>({id:`badge-${badge.id}`,icon:"award",title:"Badge earned",detail:badge.title,tab:"profile"}));
-  return[...taskItems,...habitItems,...badgeItems];
+  const taskItems=tasks.map(({t})=>({id:`task-${t.id}-${t.due}`,icon:t.due<today?"triangle-alert":"calendar-clock",title:t.due<today?"Overdue task":"Due today",detail:`${t.t} · ${t.due<today?`${Math.round((new Date(`${today}T12:00`)-new Date(`${t.due}T12:00`))/86400000)}d overdue`:"Due today"}`,tab:"tasks",priority:t.due<today?0:1}));
+  const habitItems=S.habits.filter(habit=>habit.kind!=="weekly"&&!ok(habit,today)).map(habit=>({id:`habit-${habit.id}-${today}`,icon:"repeat-2",title:"Habit to complete",detail:habit.name,tab:"habits",priority:2}));
+  const badgeItems=(S.gamification?.badges||[]).filter(badge=>badge.earnedOn===today).map(badge=>({id:`badge-${badge.id}`,icon:"award",title:"Badge earned",detail:badge.title,tab:"profile",priority:3}));
+  return[...taskItems,...habitItems,...badgeItems].sort((a,b)=>a.priority-b.priority);
 }
+function notificationState(){S.notificationState=S.notificationState&&typeof S.notificationState==="object"?S.notificationState:{};S.notificationState.read=Array.isArray(S.notificationState.read)?S.notificationState.read:[];S.notificationState.dismissed=Array.isArray(S.notificationState.dismissed)?S.notificationState.dismissed:[];return S.notificationState}
+function updateNotificationIds(key,ids){const state=notificationState();state[key]=[...new Set([...state[key],...ids])].slice(-250);save()}
 function notificationCenter(){
-  const items=getNotifications(),count=items.length,label=count>9?"9+":String(count);
-  return `<div class="notification-center"><button type="button" class="notification-button" data-a="notifications" aria-label="Notifications, ${count} active" aria-haspopup="dialog" aria-expanded="${notificationOpen}"><i data-lucide="bell"></i>${count?`<span class="notification-count">${label}</span>`:""}</button>${notificationOpen?`<section class="notification-panel" role="dialog" aria-label="Notifications"><header><strong>Notifications</strong><span>${count?`${count} active`:"All caught up"}</span></header><div class="notification-list">${items.map(item=>`<button type="button" class="notification-item" data-tab="${item.tab}" data-notice="${esc(item.id)}"><span class="notification-icon"><i data-lucide="${item.icon}"></i></span><span><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></span></button>`).join("")||`<p class="notifications-empty">No tasks due and no habits waiting today.</p>`}</div></section>`:""}</div>`;
+  const state=notificationState(),items=getNotifications().filter(item=>!state.dismissed.includes(item.id)),unread=items.filter(item=>!state.read.includes(item.id)),count=unread.length,label=count>9?"9+":String(count);
+  const visible=notificationFilter==="unread"?unread:items;
+  return `<div class="notification-center"><button type="button" class="notification-button" data-a="notifications" aria-label="Notifications, ${count} unread" aria-haspopup="dialog" aria-expanded="${notificationOpen}"><i data-lucide="bell"></i>${count?`<span class="notification-count">${label}</span>`:""}</button>${notificationOpen?`<section class="notification-panel" role="dialog" aria-label="Notifications"><header><div><strong>Notifications</strong><span>${count?`${count} unread`:"You're all caught up"}</span></div>${count?`<button type="button" class="notification-mark-all" data-a="notifications-read-all">Mark all read</button>`:""}</header><div class="notification-filters"><button type="button" data-a="notifications-filter" data-filter="all" aria-pressed="${notificationFilter==="all"}">All <span>${items.length}</span></button><button type="button" data-a="notifications-filter" data-filter="unread" aria-pressed="${notificationFilter==="unread"}">Unread <span>${unread.length}</span></button></div><div class="notification-list">${visible.map(item=>`<article class="notification-item ${state.read.includes(item.id)?"is-read":"is-unread"}"><button type="button" class="notification-open" data-tab="${item.tab}" data-notice="${esc(item.id)}"><span class="notification-icon"><i data-lucide="${item.icon}"></i></span><span class="notification-copy"><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small><time>${item.priority===0?"Needs attention":item.priority===1?"Today":item.priority===2?"Daily habit":"Milestone"}</time></span><span class="notification-unread-dot" aria-label="Unread"></span></button><button type="button" class="notification-dismiss" data-a="notification-dismiss" data-id="${esc(item.id)}" aria-label="Dismiss ${esc(item.title)}"><i data-lucide="x"></i></button></article>`).join("")||`<div class="notifications-empty"><i data-lucide="${notificationFilter==="unread"?"check-check":"bell-off"}"></i><strong>${notificationFilter==="unread"?"You're all caught up.":"Nothing needs your attention."}</strong><span>${notificationFilter==="unread"?"New reminders will appear here.":"Due tasks and unfinished daily habits will show up here."}</span></div>`}</div><footer class="notification-footer">Reminders are based on your tasks and habits.</footer></section>`:""}</div>`;
+}
+let appNotificationTimer=null;
+function showAppNotification({title,detail,icon="bell-ring",tabName="today",action="Open Hoptasks"}){
+ const root=document.getElementById("app-notification");if(!root||document.body.classList.contains("auth-mode"))return;
+ root.innerHTML=`<section class="app-notification-toast" role="status" aria-live="polite"><span class="app-notification-icon"><i data-lucide="${icon}"></i></span><div class="app-notification-copy"><strong>${esc(title)}</strong><span>${esc(detail)}</span><button type="button" data-tab="${tabName}">${esc(action)}</button></div><button type="button" class="app-notification-close" data-a="app-notification-close" aria-label="Dismiss notification"><i data-lucide="x"></i></button></section>`;
+ root.classList.add("is-visible");if(window.lucide)lucide.createIcons();
+ clearTimeout(appNotificationTimer);appNotificationTimer=setTimeout(()=>{root.classList.remove("is-visible");root.innerHTML=""},9000);
+}
+function closeAppNotification(){const root=document.getElementById("app-notification");if(!root)return;clearTimeout(appNotificationTimer);root.classList.remove("is-visible");root.innerHTML=""}
+function checkDailyAppNotification(){
+ if(!(S.profile?.inAppNotifications??S.profile?.browserNotifications)||document.hidden||document.body.classList.contains("auth-mode"))return;
+ const items=getNotifications().filter(item=>item.priority<3);if(!items.length)return;
+ const today=td(),storageKey=`${K}_in_app_alert_${authUser?.id||"local"}`;
+ const alertKey=`${storageKey}:${today}`;
+ if(appNotificationShownFor===alertKey)return;
+ try{if(localStorage.getItem(storageKey)===today)return}catch(error){if(appNotificationStorageWarningFor!==alertKey){appNotificationStorageWarningFor=alertKey;toast("Daily reminder status could not be read from device storage; this reminder will only be shown once in this tab.")}}
+ const overdue=items.filter(item=>item.priority===0).length,due=items.filter(item=>item.priority===1).length,habits=items.filter(item=>item.priority===2).length;
+ const summary=[overdue?`${overdue} overdue task${overdue===1?"":"s"}`:"",due?`${due} task${due===1?"":"s"} due today`:"",habits?`${habits} habit${habits===1?"":"s"} to complete`:""].filter(Boolean).join(" · ");
+ appNotificationShownFor=alertKey;
+ try{localStorage.setItem(storageKey,today)}catch(error){if(appNotificationStorageWarningFor!==alertKey){appNotificationStorageWarningFor=alertKey;toast("Daily reminder status could not be saved; this reminder will only be shown once in this tab.")}}
+ showAppNotification({title:"Your Hoptasks check-in",detail:summary,icon:overdue?"triangle-alert":"bell-ring",tabName:overdue||due?"tasks":"habits",action:overdue||due?"Review tasks":"Review habits"});
+}
+function dailyCompletionSummary(){
+ const today=td(),tasks=allTasks().filter(({t})=>t.due===today),habits=S.habits.filter(habit=>habit.kind!=="weekly");
+ const completedTasks=tasks.filter(({t})=>t.done).length,completedHabits=habits.filter(habit=>ok(habit,today)).length,total=tasks.length+habits.length,completed=completedTasks+completedHabits;
+ return{today,total,completed,completedTasks,totalTasks:tasks.length,completedHabits,totalHabits:habits.length,complete:total>0&&completed===total};
+}
+function recordDailyCompletion(wasComplete){
+ const summary=dailyCompletionSummary(),state=notificationState();
+ if(wasComplete||!summary.complete||state.congratulatedOn===summary.today)return null;
+ state.congratulatedOn=summary.today;return summary;
+}
+function showCongratulations(summary){
+ const root=document.getElementById("celebration");if(!root)return;
+ root.innerHTML=`<div class="celebration-backdrop" data-a="close-celebration"><section class="celebration-dialog" role="dialog" aria-modal="true" aria-labelledby="celebration-title"><span class="celebration-mark"><i data-lucide="party-popper"></i></span><span class="eyebrow">DAILY GOALS COMPLETE</span><h2 id="celebration-title">You did it!</h2><p>You completed everything you planned for today. Take a moment to celebrate your progress.</p><div class="celebration-summary"><span><strong>${summary.completedTasks}/${summary.totalTasks}</strong> tasks</span><span><strong>${summary.completedHabits}/${summary.totalHabits}</strong> habits</span></div><button type="button" data-a="close-celebration">Continue</button></section></div>`;
+ root.classList.add("is-visible");if(window.lucide)lucide.createIcons();
 }
 const ok=(h,d)=>(h.log[d]||0)>=(h.kind==="weekly"?1:(h.target||1));
 const STREAK_FREEZE_DAYS=3;
@@ -119,11 +173,11 @@ async function profilePhotoData(file){
  if(file.size>10*1024*1024)throw new Error("Choose an image smaller than 10 MB.");
  const bitmap=await createImageBitmap(file);
  try{
-  const scale=Math.min(1,512/Math.max(bitmap.width,bitmap.height)),canvas=document.createElement("canvas");
-  canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+  const side=Math.min(bitmap.width,bitmap.height),sourceX=(bitmap.width-side)/2,sourceY=(bitmap.height-side)/2,canvas=document.createElement("canvas");
+  canvas.width=1080;canvas.height=1080;
   const context=canvas.getContext("2d");if(!context)throw new Error("This browser cannot process the selected image.");
   context.fillStyle="#fff";context.fillRect(0,0,canvas.width,canvas.height);
-  context.drawImage(bitmap,0,0,canvas.width,canvas.height);
+  context.drawImage(bitmap,sourceX,sourceY,side,side,0,0,canvas.width,canvas.height);
   let blob=null;
   for(const quality of [.82,.68,.54]){
    blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",quality));
@@ -199,25 +253,28 @@ function momentumChart(){
   const data=momentum(),max=Math.max(1,...data.map(x=>x.value));
   return `<div class="chart-panel"><div class="section-head"><div><span class="eyebrow">ACTIVITY</span><h3>Momentum this week</h3></div><span class="chart-live"><i></i> Live</span></div><div class="chart"><div class="chart-grid"><span></span><span></span><span></span></div><div class="trend-bars">${data.map(x=>`<div class="trend-col"><div class="trend-value">${x.value||0}</div><div class="trend-bar" style="height:${Math.max(8,Math.round(x.value/max*100))}%"></div><span>${x.label}</span></div>`).join("")}</div></div></div>`;
 }
+let revealObserver=null,revealScrollHandler=null;
 function revealOnScroll(){
+  if(revealObserver)revealObserver.disconnect();
+  if(revealScrollHandler)window.removeEventListener("scroll",revealScrollHandler);
   const elements=document.querySelectorAll("#app .card, #app .chart-panel, #app h2, #app form.add");
   if(!("IntersectionObserver" in window)){elements.forEach(x=>x.classList.add("is-visible"));return}
-  const revealVisible=()=>elements.forEach(element=>{
+  revealScrollHandler=()=>elements.forEach(element=>{
     const box=element.getBoundingClientRect();
     if(box.top<window.innerHeight*.9&&box.bottom>0)element.classList.add("is-visible");
   });
-  const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{
+  revealObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{
     if(!entry.isIntersecting)return;
     entry.target.classList.add("is-visible");
-    observer.unobserve(entry.target);
+    revealObserver.unobserve(entry.target);
   }),{threshold:.12,rootMargin:"0px 0px -44px"});
   elements.forEach((element,index)=>{
     element.style.setProperty("--reveal-delay",`${Math.min(index*35,210)}ms`);
     element.classList.add("scroll-reveal");
-    observer.observe(element);
+    revealObserver.observe(element);
   });
-  window.addEventListener("scroll",revealVisible,{passive:true});
-  revealVisible();
+  window.addEventListener("scroll",revealScrollHandler,{passive:true});
+  revealScrollHandler();
 }
 
 const focusThoughts=["Start with one action that moves something important forward.","A clear next step makes a large goal easier to approach.","Protect a little time for the work you most want to finish.","Progress grows when you return to what matters.","Choose the next task with intention, then begin.","A short, focused effort is still meaningful progress."];
@@ -355,10 +412,14 @@ function accountabilityPartnerMarkup(partner={},index=0){
   const goals=S.goals||[],goalIds=Array.isArray(partner.goalIds)?partner.goalIds:[];
   return `<div class="accountability-partner" data-partner-row data-partner-id="${esc(partner.id||uid())}"><div class="accountability-partner-head"><strong>Partner ${index+1}</strong><button type="button" class="ghost" data-a="remove-accountability-partner" aria-label="Remove partner"><i data-lucide="x"></i></button></div><label>Email address<input type="email" data-partner-email value="${esc(partner.email||"")}" placeholder="partner@example.com" autocomplete="email"></label><fieldset class="accountability-goals"><legend>Goals they’ll support</legend>${goals.length?goals.map(goal=>`<label><input type="checkbox" data-partner-goal value="${esc(goal.id)}" ${goalIds.includes(goal.id)?"checked":""}><span>${esc(goal.title)}</span></label>`).join(""):'<p>Add a goal before assigning an accountability partner.</p>'}</fieldset></div>`;
 }
+function inAppNotificationSettings(profile){
+ const enabled=!!(profile.inAppNotifications??profile.browserNotifications);
+ return `<section class="browser-notification-settings"><div><strong>Daily in-app reminders</strong><p>Show one custom Hoptasks popup each day for overdue tasks, tasks due today, and unfinished daily habits while the app is open.</p></div><div class="browser-notification-status"><span>Status</span><strong>${enabled?"On":"Off"}</strong></div><button type="button" class="ghost" data-a="toggle-in-app-reminders" aria-pressed="${enabled}">${enabled?"Turn off reminders":"Turn on reminders"}</button><small>These are in-app popups; no browser permission or server-side push is used.</small></section>`;
+}
 
 function profilePage(){
   const p=S.profile||{name:"Your Name",email:"you@example.com",role:"Productive builder",theme:"forest",timezone:"UTC",bio:"Build deliberate momentum every day.",notifications:true};
-  const onboardingResponses=p.onboardingResponses;
+  const onboardingResponses=p.onboardingResponses,browserPermission="unsupported";
   const email={dailyReminder:p.notifications!==false,dailyTime:"08:00",weeklyMetrics:false,weeklyDay:1,monthlyWins:false,monthlyDay:1,weeklyQuote:false,weeklyQuoteDay:1,weeklyQuoteTime:"08:00",whatsNew:true,newsletter:true,...p.emailPreferences};
   const game=initRewards(),badges=game.badges.slice().sort((a,b)=>b.earnedOn.localeCompare(a.earnedOn));
   const timezone=({"GMT+1":"Africa/Lagos","GMT+2":"Europe/Paris","GMT+5:30":"Asia/Kolkata"})[p.timezone]||p.timezone||"UTC";
@@ -384,10 +445,11 @@ function profilePage(){
   <div class="email-setting"><label class="toggle-row"><input type="checkbox" name="whatsNew" ${email.whatsNew?"checked":""}> Product announcements / what’s new</label><p>Enabled by default. Turn this off here or use an email’s unsubscribe link.</p></div>
   <div class="email-setting"><label class="toggle-row"><input type="checkbox" name="newsletter" ${email.newsletter?"checked":""}> Hoptasks newsletter</label><p>Enabled by default and managed separately from account reminders and metrics.</p></div>
   <button type="submit"><i data-lucide="check"></i> Save email preferences</button></section></form></div></div><aside class="profile-side-column">${onboardingResponses?`<section class="card onboarding-responses"><div class="section-heading"><div><span class="eyebrow">WELCOME QUESTIONS</span><h2>Your onboarding responses</h2></div></div><div class="mini-stat-list"><div class="mini-stat"><span>First name</span><strong>${esc(onboardingResponses.firstName||"Not provided")}</strong></div><div class="mini-stat"><span>Last name</span><strong>${esc(onboardingResponses.lastName||"Not provided")}</strong></div><div class="mini-stat"><span>How you heard about us</span><strong>${esc(onboardingResponses.referralSource||"Not provided")}</strong></div><div class="mini-stat"><span>Your first goal</span><strong>${esc(onboardingResponses.firstGoal||"Not provided")}</strong></div><div class="mini-stat"><span>Completed</span><strong>${onboardingResponses.completedAt?new Date(onboardingResponses.completedAt).toLocaleDateString():""}</strong></div></div></section>`:""}
-  <div class="card workspace-card" id="workspace-settings"><div class="section-heading"><div><span class="eyebrow">PREFERENCES</span><h2>Workspace</h2></div></div><div class="mini-stat-list"><div class="mini-stat"><span>Last sign-in</span><strong>${authUser?authUser.email||"Signed in":"Local only"}</strong></div><div class="mini-stat"><span>Data mode</span><strong>${authUser&&cloudHydrated?"Synced":"Local safe"}</strong></div></div><form class="settings-form" data-f="profile-theme"><fieldset class="theme-picker"><legend>Theme color</legend><div class="theme-options">${themes.map(theme=>`<label class="theme-choice"><input type="radio" name="theme" value="${theme.id}" ${p.theme===theme.id?"checked":""}><span class="theme-swatch" style="--swatch:${theme.color}"></span><span>${theme.label}</span></label>`).join("")}</div><button type="submit" class="ghost">Apply theme</button></fieldset></form></div></aside></div></div>`;
+  <div class="card workspace-card" id="workspace-settings"><div class="section-heading"><div><span class="eyebrow">PREFERENCES</span><h2>Workspace</h2></div></div><div class="mini-stat-list"><div class="mini-stat"><span>Last sign-in</span><strong>${authUser?authUser.email||"Signed in":"Local only"}</strong></div><div class="mini-stat"><span>Data mode</span><strong>${authUser&&cloudHydrated?"Synced":"Local safe"}</strong></div></div><form class="settings-form" data-f="profile-theme"><fieldset class="theme-picker"><legend>Theme color</legend><div class="theme-options">${themes.map(theme=>`<label class="theme-choice"><input type="radio" name="theme" value="${theme.id}" ${p.theme===theme.id?"checked":""}><span class="theme-swatch" style="--swatch:${theme.color}"></span><span>${theme.label}</span></label>`).join("")}</div><button type="submit" class="ghost">Apply theme</button></fieldset></form><section class="browser-notification-settings"><div><strong>Browser reminders</strong><p>Get one daily browser alert for overdue tasks, tasks due today, and unfinished daily habits while Hoptasks is open.</p></div><div class="browser-notification-status"><span>Status</span><strong>${p.browserNotifications?browserPermission==="granted"?"Enabled":"Permission needed":browserPermission==="granted"?"Permission granted":browserPermission==="denied"?"Blocked in browser":browserPermission==="unsupported"?"Not supported":"Off"}</strong></div><button type="button" class="ghost" data-a="browser-notifications" aria-pressed="${!!p.browserNotifications}" ${browserPermission==="unsupported"||browserPermission==="denied"&&!p.browserNotifications?"disabled":""}>${p.browserNotifications?"Turn off reminders":browserPermission==="denied"?"Allow in browser settings":browserPermission==="unsupported"?"Unavailable":"Enable browser reminders"}</button><small>Browser alerts can’t be delivered after you close Hoptasks. No server-side push is configured.</small></section></div></aside></div></div>`;
   if(authUser?.app_metadata?.email_admin===true)h+=`<section class="card email-campaign-admin"><div class="section-heading"><div><span class="eyebrow">ADMIN</span><h2>What's new and newsletters</h2></div></div><p>Write a product update or newsletter and schedule when opted-in users receive it.</p><form class="settings-form" data-f="email-campaign"><label>Campaign type<select name="campaignType"><option value="whats_new">What's new / product announcement</option><option value="newsletter">Newsletter</option></select></label><label>Internal title<input name="title" required maxlength="100" placeholder="October product update"></label><label>Email subject<input name="subject" required maxlength="150"></label><label>Message<textarea name="content" rows="6" required maxlength="10000" placeholder="Write the email text. Each new line becomes a paragraph."></textarea></label><label>Publish at<input type="datetime-local" name="publishAt" required></label><button type="submit">Schedule email</button></form><h3>Recent scheduled campaigns</h3><button type="button" class="ghost" data-a="refresh-email-campaigns">Refresh campaigns</button><div class="email-campaign-list">${emailCampaigns.map(campaign=>`<div class="email-campaign-row"><strong>${esc(campaign.title)}</strong><span>${campaign.campaign_type==="newsletter"?"Newsletter":"What's new"} · ${new Date(campaign.publish_at).toLocaleString()}</span></div>`).join("")||"<p>No campaigns found.</p>"}</div></section>`;
   if(weeklyPreviewOpen)h+=`<div class="weekly-preview-backdrop" data-a="weekly-preview-backdrop"><section class="weekly-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="weekly-preview-title"><header class="weekly-preview-header"><div><h2 id="weekly-preview-title">Weekly email preview</h2><p>Previous full week · uses your saved data · does not send</p><strong id="weekly-preview-subject"></strong></div><button type="button" class="ghost" data-a="weekly-preview-close" aria-label="Close preview"><i data-lucide="x"></i></button></header><iframe id="weekly-email-preview" title="Weekly email content" sandbox></iframe></div>`;
   h+=`<section class="card badges-card" id="profile-badges"><div class="section-heading"><div><span class="eyebrow">YOUR MILESTONES</span><h2>Badges</h2></div><span class="badge-total">${badges.length}</span></div><div class="badge-list">${badges.map(badge=>`<article class="badge-item"><span class="badge-mark"><i data-lucide="award"></i></span><div><strong>${esc(badge.title)}</strong><p>${esc(badge.description)}</p><time datetime="${esc(badge.earnedOn)}">Earned ${new Date(`${badge.earnedOn}T12:00`).toLocaleDateString()}</time></div></article>`).join("")||`<div class="badges-empty"><i data-lucide="sparkles"></i><strong>Your first badge is waiting.</strong><span>Finish a project or goal to earn one.</span></div>`}</div><div class="personal-best"><i data-lucide="trophy"></i><span>Personal best</span><strong>${game.personalBestTasks} tasks in one week</strong></div></section>`;
+  h=h.replace(/<section class="browser-notification-settings">[\s\S]*?<\/section>/,inAppNotificationSettings(p));
   return h}
 
 function history(){
@@ -469,10 +531,17 @@ document.addEventListener("click",e=>{
   if(e.target.closest("[data-a=auth-switch]")){authMode=authMode==="login"?"signup":"login";showAuth();return}
   if(e.target.closest("[data-a=auth-reset]")){authMode="reset";showAuth();return}
   if(e.target.closest("[data-a=auth-back]")){authMode="login";showAuth();return}
-  const n=e.target.closest("[data-tab]");if(n){tab=n.dataset.tab;mobileMoreOpen=false;notificationOpen=false;analyticsFocus=null;editingGoal=null;editingTask=null;render();return}
+  const n=e.target.closest("[data-tab]");if(n){if(n.dataset.notice)updateNotificationIds("read",[n.dataset.notice]);if(n.closest(".app-notification-toast"))closeAppNotification();tab=n.dataset.tab;mobileMoreOpen=false;notificationOpen=false;analyticsFocus=null;editingGoal=null;editingTask=null;render();return}
   const control=e.target.closest("[data-a]"),a=control?.dataset.a,id=control?.dataset.id;if(!a)return;
   if(a==="mobile-more"){mobileMoreOpen=!mobileMoreOpen;render();return}
   if(a==="notifications"){notificationOpen=!notificationOpen;render();return}
+  if(a==="retry-cloud-load"){showAppLoading("Retrying your workspace…");loadCloud();return}
+  if(a==="notifications-filter"){notificationFilter=control.dataset.filter==="unread"?"unread":"all";render();return}
+  if(a==="notifications-read-all"){updateNotificationIds("read",getNotifications().filter(item=>!notificationState().dismissed.includes(item.id)).map(item=>item.id));render();return}
+  if(a==="notification-dismiss"){updateNotificationIds("dismissed",[id]);render();return}
+  if(a==="app-notification-close"){closeAppNotification();return}
+  if(a==="close-celebration"){document.getElementById("celebration")?.classList.remove("is-visible");document.getElementById("celebration").innerHTML="";return}
+  if(a==="toggle-in-app-reminders"){S.profile=S.profile||{};S.profile.inAppNotifications=!(S.profile.inAppNotifications??S.profile.browserNotifications);delete S.profile.browserNotifications;save();render();if(S.profile.inAppNotifications)checkDailyAppNotification();toast(S.profile.inAppNotifications?"Daily in-app reminders enabled.":"Daily in-app reminders turned off.");return}
   if(a==="next-thought"){rotateFocusThought();return}
   if(a==="add-accountability-partner"){const list=document.getElementById("accountability-partner-list");if(list){list.insertAdjacentHTML("beforeend",accountabilityPartnerMarkup({},list.querySelectorAll("[data-partner-row]").length));if(window.lucide)lucide.createIcons()}return}
   if(a==="remove-accountability-partner"){const list=document.getElementById("accountability-partner-list");control.closest("[data-partner-row]")?.remove();if(list&&!list.querySelector("[data-partner-row]"))list.insertAdjacentHTML("beforeend",accountabilityPartnerMarkup({},0));if(window.lucide)lucide.createIcons();return}
@@ -498,17 +567,17 @@ document.addEventListener("click",e=>{
   if(a==="canceltask"){editingTask=null;render();return}
   if(a==="subtask"){const task=allTasks().find(x=>x.t.id===id)?.t,sub=task?.subtasks?.find(s=>s.id===control.dataset.subid);if(sub){sub.done=control.checked;save();render()}return}
   if(a==="delsubtask"&&confirm("Delete this subtask?")){const task=allTasks().find(x=>x.t.id===id)?.t;if(task)task.subtasks=(task.subtasks||[]).filter(s=>s.id!==control.dataset.subid);save();render();return}
-  if(a==="task"){const x=allTasks().find(y=>y.t.id===id);x.t.done=e.target.checked;x.t.doneOn=x.t.done?td():null;
-    const rewards=x.t.done?updateRewards():null;save();if(rewards&&(rewards.earned.length||rewards.newPersonalBest))rewardToast(rewards);else if(x.t.done){if(x.g&&prog(x.g)===100)toast("Goal complete: "+x.g.title+". Well done.");else if(x.t.ms)toast("Milestone reached.")}render()}
+  if(a==="task"){const before=dailyCompletionSummary().complete,x=allTasks().find(y=>y.t.id===id);x.t.done=e.target.checked;x.t.doneOn=x.t.done?td():null;
+    const rewards=x.t.done?updateRewards():null,celebration=x.t.done?recordDailyCompletion(before):null;save();if(rewards&&(rewards.earned.length||rewards.newPersonalBest))rewardToast(rewards);else if(x.t.done){if(x.g&&prog(x.g)===100)toast("Goal complete: "+x.g.title+". Well done.");else if(x.t.ms)toast("Milestone reached.")}render();if(celebration)showCongratulations(celebration)}
   if(a==="deltask"&&confirm("Delete this task?")){S.goals.forEach(g=>g.projects.forEach(p=>p.tasks=p.tasks.filter(t=>t.id!==id)));S.tasks=(S.tasks||[]).filter(t=>t.id!==id);save();render()}
-  if(a==="hab"){const h=S.habits.find(y=>y.id===id);if(e.target.checked)h.log[td()]=1;else delete h.log[td()];const rewards=e.target.checked?updateRewards():null;save();if(rewards&&(rewards.earned.length||rewards.newPersonalBest))rewardToast(rewards);render()}
+  if(a==="hab"){const before=dailyCompletionSummary().complete,h=S.habits.find(y=>y.id===id);if(e.target.checked)h.log[td()]=1;else delete h.log[td()];const rewards=e.target.checked?updateRewards():null,celebration=e.target.checked?recordDailyCompletion(before):null;save();if(rewards&&(rewards.earned.length||rewards.newPersonalBest))rewardToast(rewards);render();if(celebration)showCongratulations(celebration)}
   if(a==="sess"){const h=S.habits.find(y=>y.id===id);h.log[td()]=(h.log[td()]||0)+1;const rewards=updateRewards();save();if(rewards.earned.length||rewards.newPersonalBest)rewardToast(rewards);else toast(weekCount(h)>=h.target?"Weekly target hit!":"Session logged.");render()}
   if(a==="desess"){const h=S.habits.find(y=>y.id===id),count=h?.log[td()]||0;if(h&&count>0){if(count===1)delete h.log[td()];else h.log[td()]=count-1;save();toast("Today's session removed.");render()}}
   if(a==="delgoal"&&confirm("Delete this goal?")){S.goals=S.goals.filter(g=>g.id!==id);save();render()}
   if(a==="delproj"&&confirm("Delete this project?")){S.goals.forEach(g=>g.projects=g.projects.filter(p=>p.id!==id));save();render()}
   if(a==="delhab"&&confirm("Delete this habit?")){S.habits=S.habits.filter(h=>h.id!==id);save();render()}
 });
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&reviewRecap){reviewRecap=null;render()}else if(e.key==="Escape"&&weeklyPreviewOpen){weeklyPreviewOpen=false;render()}else if(e.key==="Escape"&&mobileMoreOpen){mobileMoreOpen=false;render()}else if(e.key==="Escape"&&notificationOpen){notificationOpen=false;render()}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&document.getElementById("celebration")?.classList.contains("is-visible")){document.getElementById("celebration").classList.remove("is-visible");document.getElementById("celebration").innerHTML=""}else if(e.key==="Escape"&&reviewRecap){reviewRecap=null;render()}else if(e.key==="Escape"&&weeklyPreviewOpen){weeklyPreviewOpen=false;render()}else if(e.key==="Escape"&&mobileMoreOpen){mobileMoreOpen=false;render()}else if(e.key==="Escape"&&notificationOpen){notificationOpen=false;render()}else if(e.key==="Escape")closeAppNotification()});
 document.addEventListener("submit",e=>{
   const form=e.target;
   if(form.dataset.f!=="auth"||authMode!=="signup")return;
@@ -578,11 +647,15 @@ document.addEventListener("change",async e=>{
   return;
  }
  if(e.target.dataset.a!=="habval")return;
+ const before=dailyCompletionSummary().complete;
  const h=S.habits.find(y=>y.id===e.target.dataset.id),v=Math.max(0,+e.target.value||0);
- if(v)h.log[td()]=v;else delete h.log[td()];const complete=ok(h,td()),rewards=complete?updateRewards():null;save();if(rewards&&(rewards.earned.length||rewards.newPersonalBest))rewardToast(rewards);else if(complete)toast(h.name.split(":")[0]+" done.");render()});
+ if(v)h.log[td()]=v;else delete h.log[td()];const complete=ok(h,td()),rewards=complete?updateRewards():null,celebration=complete?recordDailyCompletion(before):null;save();if(rewards&&(rewards.earned.length||rewards.newPersonalBest))rewardToast(rewards);else if(complete)toast(h.name.split(":")[0]+" done.");render();if(celebration)showCongratulations(celebration)});
 
 checkpointDay();
 render();
 if(localStorageReadError)toast("Saved data could not be read. A recovery copy was kept if storage allowed.");
 setInterval(()=>{const current=td();if(S.meta?.lastDay&&S.meta.lastDay!==current){checkpointDay(current);render();}},60000);
+setInterval(checkDailyAppNotification,60000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkDailyAppNotification()});
+if(!db)checkDailyAppNotification();
 initAuth();

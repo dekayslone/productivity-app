@@ -103,7 +103,7 @@ function streak(h){
   if(ok(h,d)){
    days++;
    for(const[month,count]of pendingMisses)monthlyMisses.set(month,(monthlyMisses.get(month)||0)+count);
-   days+=pendingDates.length;pendingDates.forEach(date=>frozenDates.add(date));pendingMisses.clear();pendingDates.length=0;
+   pendingDates.forEach(date=>frozenDates.add(date));pendingMisses.clear();pendingDates.length=0;
   }else{
    const month=d.slice(0,7),used=(monthlyMisses.get(month)||0)+(pendingMisses.get(month)||0);
    if(used>=STREAK_FREEZE_DAYS)break;

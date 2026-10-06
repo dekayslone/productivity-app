@@ -93,7 +93,26 @@ function notificationCenter(){
   return `<div class="notification-center"><button type="button" class="notification-button" data-a="notifications" aria-label="Notifications, ${count} active" aria-haspopup="dialog" aria-expanded="${notificationOpen}"><i data-lucide="bell"></i>${count?`<span class="notification-count">${label}</span>`:""}</button>${notificationOpen?`<section class="notification-panel" role="dialog" aria-label="Notifications"><header><strong>Notifications</strong><span>${count?`${count} active`:"All caught up"}</span></header><div class="notification-list">${items.map(item=>`<button type="button" class="notification-item" data-tab="${item.tab}" data-notice="${esc(item.id)}"><span class="notification-icon"><i data-lucide="${item.icon}"></i></span><span><strong>${esc(item.title)}</strong><small>${esc(item.detail)}</small></span></button>`).join("")||`<p class="notifications-empty">No tasks due and no habits waiting today.</p>`}</div></section>`:""}</div>`;
 }
 const ok=(h,d)=>(h.log[d]||0)>=(h.kind==="weekly"?1:(h.target||1));
-function streak(h){let d=td();if(!ok(h,d))d=addDays(d,-1);let n=0;while(ok(h,d)){n++;d=addDays(d,-1)}return n}
+const STREAK_FREEZE_DAYS=3;
+function streak(h){
+ const today=td(),endDate=ok(h,today)?today:addDays(today,-1);
+ const successes=Object.keys(h.log||{}).filter(date=>date<=endDate&&ok(h,date)).sort();
+ if(!successes.length)return{days:0,freezeDaysRemaining:STREAK_FREEZE_DAYS,frozenDates:new Set()};
+ const monthlyMisses=new Map(),allocatedFreezes=new Set();
+ for(let d=successes[0];d<=endDate;d=addDays(d,1)){
+  if(ok(h,d))continue;
+  const month=d.slice(0,7),used=monthlyMisses.get(month)||0;
+  if(used<STREAK_FREEZE_DAYS){monthlyMisses.set(month,used+1);allocatedFreezes.add(d)}
+ }
+ let days=0,d=endDate;const frozenDates=new Set();
+ while(d>=successes[0]){
+  if(ok(h,d))days++;
+  else if(allocatedFreezes.has(d))frozenDates.add(d);
+  else break;
+  d=addDays(d,-1);
+ }
+ return{days,freezeDaysRemaining:STREAK_FREEZE_DAYS-(monthlyMisses.get(today.slice(0,7))||0),frozenDates};
+}
 const wkStart=()=>addDays(td(),-((new Date().getDay()+6)%7));
 const sumR=(h,a,b)=>{let n=0,d=a;while(d<=b){n+=h.log[d]||0;d=addDays(d,1)}return n};
 const weekCount=h=>sumR(h,wkStart(),addDays(wkStart(),6));
@@ -235,11 +254,14 @@ function scheduler(){
 }
 
 function habits(){
-  let h=`<h1>Habits</h1><div class="sub">Daily practices that build streaks.</div>
+  let h=`<h1>Habits</h1><div class="sub">Daily practices that build streaks. Each habit gets 3 automatic freeze days per calendar month; the allowance renews at the start of each month.</div>
   <form class="add" data-f="habit"><input type="text" name="t" placeholder="e.g. Prayer, Bible reading, Book" required><input type="number" name="tg" min="1" placeholder="Daily target" style="width:110px"><select name="u" aria-label="Habit unit"><option value="">Count</option><option value="minutes">Minutes</option><option value="chapters">Chapters</option><option value="pages">Pages</option><option value="sessions">Sessions</option><option value="repetitions">Repetitions</option></select>${catSel}<button>Add</button></form>`;
   const t=td(),days=[...Array(14)].map((_,i)=>addDays(t,i-13));
-  h+=S.habits.map(x=>`<div class="card"><div class="row"><div class="g"><b>${esc(x.name)}</b> <span class="tag">${esc(x.cat)}</span></div>${x.kind==="weekly"?`<span class="tag">${weekCount(x)}/${x.target} this week</span>`:`<span class="tag"><i data-lucide="flame" class="tag-icon"></i> ${streak(x)}</span>`}<button class="ghost" data-a="delhab" data-id="${x.id}"><i data-lucide="x"></i></button></div>
-  <div class="row" style="gap:3px;margin-top:8px">${days.map(d=>`<span title="${d}" style="flex:1;height:18px;border-radius:4px;background:${ok(x,d)?"var(--ac)":"var(--ac2)"}"></span>`).join("")}</div><div class="mut">Last 14 days</div></div>`).join("");
+  h+=S.habits.map(x=>{
+   const currentStreak=x.kind==="weekly"?null:streak(x);
+   return `<div class="card"><div class="row"><div class="g"><b>${esc(x.name)}</b> <span class="tag">${esc(x.cat)}</span></div>${currentStreak?`<span class="tag"><i data-lucide="flame" class="tag-icon"></i> ${currentStreak.days}</span>`:`<span class="tag">${weekCount(x)}/${x.target} this week</span>`}<button class="ghost" data-a="delhab" data-id="${x.id}"><i data-lucide="x"></i></button></div>
+  ${currentStreak?`<div class="mut">${currentStreak.freezeDaysRemaining} freeze ${currentStreak.freezeDaysRemaining===1?"day":"days"} left</div>`:""}<div class="row" style="gap:3px;margin-top:8px">${days.map(d=>{const frozen=currentStreak?.frozenDates.has(d);return `<span title="${d}${frozen?" · streak frozen":""}" style="flex:1;height:18px;border-radius:4px;background:${ok(x,d)?"var(--ac)":frozen?"color-mix(in srgb, var(--ac) 42%, var(--ac2))":"var(--ac2)"}"></span>`}).join("")}</div><div class="mut">Last 14 days</div></div>`;
+  }).join("");
   return h}
 
 function review(){
@@ -504,9 +526,9 @@ document.addEventListener("submit",async e=>{
     S.reviews.push(record);toast(w?"Review saved. Your weekly recap is ready.":"Review saved.")}
   save();render()});
 
-const hrow=(x,t)=>{const v=x.log[t]||0,tg=x.target||1,p=Math.min(100,Math.round(100*v/tg));
+const hrow=(x,t)=>{const v=x.log[t]||0,tg=x.target||1,p=Math.min(100,Math.round(100*v/tg)),currentStreak=streak(x);
  const inp=tg===1&&!x.unit?`<input type="checkbox" data-a="hab" data-id="${x.id}" ${v?"checked":""}>`:`<input class="num" type="number" min="0" value="${v||""}" placeholder="0" data-a="habval" data-id="${x.id}">`;
- return `<div class="card daily-habit-card"><div class="row">${inp}<div class="g"><span class="${ok(x,t)?"done":""}">${esc(x.name)}</span><div class="mut">${tg>1||x.unit?`today: ${v} / ${tg} ${x.unit||""}`:"Daily target"}${x.pri?` · Priority ${x.pri}`:""}</div></div><span class="daily-percent">${p}%</span><span class="tag"><i data-lucide="flame" class="tag-icon"></i> ${streak(x)}</span></div>${bar(p)}<div class="daily-progress-meta"><span>Today</span><strong>${p}% complete</strong></div></div>`};
+ return `<div class="card daily-habit-card"><div class="row">${inp}<div class="g"><span class="${ok(x,t)?"done":""}">${esc(x.name)}</span><div class="mut">${tg>1||x.unit?`today: ${v} / ${tg} ${x.unit||""}`:"Daily target"}${x.pri?` · Priority ${x.pri}`:""}</div></div><span class="daily-percent">${p}%</span><span class="tag"><i data-lucide="flame" class="tag-icon"></i> ${currentStreak.days}</span></div>${bar(p)}<div class="daily-progress-meta"><span>Today</span><strong>${p}% complete · ${currentStreak.freezeDaysRemaining} freeze ${currentStreak.freezeDaysRemaining===1?"day":"days"} left</strong></div></div>`};
 function core(t){
  const dow=new Date().getDay(),dly=S.habits.filter(h=>h.kind!=="weekly").sort((a,b)=>(a.pri||9)-(b.pri||9)),wk=S.habits.filter(h=>h.kind==="weekly");
  let h="";

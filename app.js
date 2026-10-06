@@ -227,7 +227,8 @@ function today(){
   const t=td(),all=allTasks().filter(x=>!x.t.done);
   const doneToday=allTasks().filter(x=>x.t.doneOn===t).length;
   const hd=S.habits.filter(h=>h.kind!=="weekly"&&ok(h,t)).length;
-  let h=`<h1>${new Date().toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})}</h1><div class="sub">Set → Plan → Execute → Track → Review → Improve</div>
+  const userName=(S.profile?.name||"Your Name").trim()||"Your Name",todayLabel=new Date(`${t}T12:00`).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric",year:"numeric"});
+  let h=`<h1>Welcome, ${esc(userName)}</h1><div class="sub">${todayLabel}</div>
   <div class="stats"><div class="card kpi"><div class="kpi-icon"><i data-lucide="list-checks"></i></div><div class="big">${all.length}</div><div class="mut">open tasks</div></div>
   <div class="card kpi"><div class="kpi-icon"><i data-lucide="check-circle-2"></i></div><div class="big">${doneToday}</div><div class="mut">done today</div></div>
   <div class="card kpi"><div class="kpi-icon"><i data-lucide="repeat-2"></i></div><div class="big">${hd}/${S.habits.filter(h=>h.kind!=="weekly").length}</div><div class="mut">habits</div></div></div>

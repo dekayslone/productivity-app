@@ -99,13 +99,12 @@ function streak(h){
  const successes=Object.keys(h.log||{}).filter(date=>date<=endDate&&ok(h,date)).sort();
  if(!successes.length)return{days:0,freezeDaysRemaining:STREAK_FREEZE_DAYS,frozenDates:new Set()};
  const monthlyMisses=new Map(),allocatedFreezes=new Set();
- const firstRelevantDate=addDays(endDate,-(STREAK_FREEZE_DAYS+1));
- for(let d=firstRelevantDate;d<=endDate;d=addDays(d,1)){
+ for(let d=successes[0];d<=endDate;d=addDays(d,1)){
   if(ok(h,d))continue;
   const month=d.slice(0,7),used=monthlyMisses.get(month)||0;
   if(used<STREAK_FREEZE_DAYS){monthlyMisses.set(month,used+1);allocatedFreezes.add(d)}
  }
- let days=0,d=endDate;const frozenDates=new Set(),oldestSuccess=successes[successes.length-1];
+ let days=0,d=endDate;const frozenDates=new Set(),oldestSuccess=successes[0];
  while(d>=oldestSuccess){
   if(ok(h,d))days++;
   else if(allocatedFreezes.has(d))frozenDates.add(d);
@@ -113,6 +112,28 @@ function streak(h){
   d=addDays(d,-1);
  }
  return{days,freezeDaysRemaining:STREAK_FREEZE_DAYS-(monthlyMisses.get(today.slice(0,7))||0),frozenDates};
+}
+async function profilePhotoData(file){
+ if(!["image/jpeg","image/png","image/webp"].includes(file.type))throw new Error("Choose a JPEG, PNG, or WebP image.");
+ if(file.size>10*1024*1024)throw new Error("Choose an image smaller than 10 MB.");
+ const bitmap=await createImageBitmap(file);
+ try{
+  const scale=Math.min(1,512/Math.max(bitmap.width,bitmap.height)),canvas=document.createElement("canvas");
+  canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+  const context=canvas.getContext("2d");if(!context)throw new Error("This browser cannot process the selected image.");
+  context.fillStyle="#fff";context.fillRect(0,0,canvas.width,canvas.height);
+  context.drawImage(bitmap,0,0,canvas.width,canvas.height);
+  let blob=null;
+  for(const quality of [.82,.68,.54]){
+   blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",quality));
+   if(!blob)throw new Error("The selected image could not be processed.");
+   if(blob.size<=220*1024)break;
+  }
+  if(blob.size>220*1024)throw new Error("That image could not be compressed enough. Choose a smaller image.");
+  const reader=new FileReader(),data=await new Promise((resolve,reject)=>{reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(reader.error||new Error("The selected image could not be read."));reader.readAsDataURL(blob)});
+  if(typeof data!=="string")throw new Error("The selected image could not be read.");
+  return data;
+ }finally{bitmap.close()}
 }
 const wkStart=()=>addDays(td(),-((new Date().getDay()+6)%7));
 const sumR=(h,a,b)=>{let n=0,d=a;while(d<=b){n+=h.log[d]||0;d=addDays(d,1)}return n};
@@ -340,7 +361,7 @@ function profilePage(){
   const activeStreaks=S.habits.filter(habit=>habit.kind!=="weekly"&&streak(habit).days>0).length;
   const themes=[{id:"forest",label:"Forest",color:"#267b65"},{id:"ocean",label:"Ocean",color:"#3578a8"},{id:"berry",label:"Berry",color:"#a84b70"},{id:"sunset",label:"Sunset",color:"#c36535"},{id:"slate",label:"Slate",color:"#60747d"}];
   const timezones=[['UTC','UTC'],['Africa/Lagos','Lagos (UTC+1)'],['Europe/Paris','Paris (UTC+1/+2)'],['Europe/London','London (UTC/+1)'],['America/New_York','New York'],['America/Chicago','Chicago'],['America/Los_Angeles','Los Angeles'],['Asia/Kolkata','India (UTC+5:30)'],['Asia/Tokyo','Tokyo'],['Australia/Sydney','Sydney']];
-  let h=`<div class="profile-page"><header class="profile-header card"><div class="profile-cover"></div><div class="profile-identity"><div class="profile-avatar" aria-hidden="true">${esc(initials)}</div><div class="profile-heading"><span class="eyebrow">YOUR PROFILE</span><h1>${esc(p.name)}</h1><div class="profile-subtitle">${esc(p.role||"Build your momentum, one day at a time.")}</div><div class="profile-email">${esc(authUser?.email||p.email||"")}</div></div><button type="submit" class="profile-save-button" form="profile-settings-form"><i data-lucide="check"></i> Save changes</button></div><div class="profile-stats"><div><strong>${S.habits.length}</strong><span>habits</span></div><div><strong>${activeStreaks}</strong><span>active streaks</span></div><div><strong>${badges.length}</strong><span>badges earned</span></div></div></header>
+  let h=`<div class="profile-page"><header class="profile-header card"><div class="profile-cover"></div><div class="profile-identity"><div class="profile-photo-wrap"><div class="profile-avatar" aria-hidden="true">${p.photo?`<img src="${esc(p.photo)}" alt="">`:esc(initials)}</div><label class="profile-photo-upload"><i data-lucide="camera"></i><span>${p.photo?"Change photo":"Add photo"}</span><input class="profile-photo-input" type="file" accept="image/jpeg,image/png,image/webp" aria-label="${p.photo?"Change profile photo":"Add profile photo"}"></label>${p.photo?`<button type="button" class="profile-photo-remove" data-a="remove-profile-photo"><i data-lucide="x"></i> Remove</button>`:""}</div><div class="profile-heading"><span class="eyebrow">YOUR PROFILE</span><h1>${esc(p.name)}</h1><div class="profile-subtitle">${esc(p.role||"Build your momentum, one day at a time.")}</div><div class="profile-email">${esc(authUser?.email||p.email||"")}</div></div><button type="submit" class="profile-save-button" form="profile-settings-form"><i data-lucide="check"></i> Save changes</button></div><div class="profile-stats"><div><strong>${S.habits.length}</strong><span>habits</span></div><div><strong>${activeStreaks}</strong><span>active streaks</span></div><div><strong>${badges.length}</strong><span>badges earned</span></div></div></header>
   <div class="profile-shortcuts" role="navigation" aria-label="Profile sections"><a href="#profile-details"><i data-lucide="user-round"></i> Personal details</a><a href="#email-preferences"><i data-lucide="bell"></i> Email preferences</a><a href="#workspace-settings"><i data-lucide="sliders-horizontal"></i> Workspace</a><a href="#profile-badges"><i data-lucide="award"></i> Badges</a></div>
   <div class="settings-grid"><div class="profile-main-column"><div class="card profile-details" id="profile-details"><div class="section-heading"><div><span class="eyebrow">YOUR ACCOUNT</span><h2>Personal details</h2></div></div><form class="settings-form" id="profile-settings-form" data-f="profile">
   <div class="two-col"><label>Full name<input type="text" name="name" value="${esc(p.name)}" required></label><label>Contact email<input type="email" name="email" value="${esc(p.email)}" required></label></div>
@@ -430,7 +451,7 @@ function render(){
   if(tab==="profile"&&authUser?.app_metadata?.email_admin===true)loadEmailCampaigns();
   const titles={today:"Today",goals:"Goals",tasks:"Tasks",scheduler:"Scheduler",habits:"Habits",review:"Reviews",history:"Growth",profile:"Profile"};
   const initials=(S.profile?.name||"Your Name").split(/\s+/).filter(Boolean).slice(0,2).map(word=>word[0]).join("").toUpperCase()||"YN";
-  document.getElementById("topbar").innerHTML=`<div class="crumb"><span>Workspace</span><b>/</b><strong>${titles[tab]}</strong></div><div class="top-actions"><span class="top-date">${new Date().toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})}</span>${notificationCenter()}<button class="top-logout" data-a="logout" aria-label="Log out"><i data-lucide="log-out"></i><span>Log out</span></button><span class="avatar">${initials}</span></div>`;
+  document.getElementById("topbar").innerHTML=`<div class="crumb"><span>Workspace</span><b>/</b><strong>${titles[tab]}</strong></div><div class="top-actions"><span class="top-date">${new Date().toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})}</span>${notificationCenter()}<button class="top-logout" data-a="logout" aria-label="Log out"><i data-lucide="log-out"></i><span>Log out</span></button><span class="avatar">${S.profile?.photo?`<img src="${esc(S.profile.photo)}" alt="">`:initials}</span></div>`;
   const items=[["today","Today","layout-dashboard","Now"],["goals","Goals","target","Goals"],["tasks","Tasks","list-checks","Tasks"],["scheduler","Schedule","calendar-clock","Plan"],["habits","Habits","flame","Habits"],["review","Review","notebook-pen","Rev"],["history","Growth","chart-no-axes-combined","Stats"]],mobileNav=window.matchMedia("(max-width: 900px)").matches,mainItems=mobileNav?items.filter(item=>["today","goals","tasks","habits"].includes(item[0])):items,navButton=item=>`<button data-tab="${item[0]}" aria-label="${item[1]}" title="${item[1]}" class="${tab===item[0]?"on":""}"><i data-lucide="${item[2]}" class="nav-icon"></i><span data-short="${item[3]}">${item[1]}</span></button>`,moreTabs=[["scheduler","Schedule","calendar-clock"],["review","Reviews","notebook-pen"],["history","Growth","chart-no-axes-combined"],["profile","Profile","user-round"]],moreActive=moreTabs.some(item=>item[0]===tab);
   document.body.dataset.theme=["forest","ocean","berry","sunset","slate"].includes(S.profile?.theme)?S.profile.theme:"forest";
   document.getElementById("nav").innerHTML=`<div class="brand"><span class="brand-mark"><i data-lucide="sparkles"></i></span><span>Hoptasks</span></div><div class="nav-label">Workspace</div>${mainItems.map(navButton).join("")}${mobileNav?`<button data-a="mobile-more" aria-label="More navigation" aria-controls="mobile-more-panel" aria-expanded="${mobileMoreOpen}" class="${moreActive?"on":""}"><i data-lucide="ellipsis" class="nav-icon"></i><span data-short="More">More</span></button>${mobileMoreOpen?`<div id="mobile-more-panel" class="mobile-more-panel" role="menu"><div class="mobile-more-heading">More</div>${moreTabs.map(item=>`<button type="button" role="menuitem" data-tab="${item[0]}" class="${tab===item[0]?"current":""}"><i data-lucide="${item[2]}" class="nav-icon"></i><span>${item[1]}</span></button>`).join("")}</div>`:""}`:`<div class="sidebar-foot"><button data-tab="profile" aria-label="Profile" title="Profile" class="${tab==="profile"?"on":""}"><i data-lucide="user-round" class="nav-icon"></i><span data-short="Me">Profile</span></button></div>`}`;
@@ -461,6 +482,7 @@ document.addEventListener("click",e=>{
   if(a==="focus"){analyticsFocus=id;render();return}
   if(a==="analytics-back"){analyticsFocus=null;render();return}
   if(a==="logout"){db?.auth.signOut();return}
+  if(a==="remove-profile-photo"){S.profile=S.profile||{};delete S.profile.photo;const saved=save();render();if(saved)toast("Profile photo removed.");return}
   if(a==="delalltasks"&&confirm("Delete all tasks? This cannot be undone.")){S.goals.forEach(g=>g.projects.forEach(p=>p.tasks=[]));S.tasks=[];save();render();return}
   if(a==="scheduler-prev"){schedulerDate=addDays(schedulerDate||td(),-1);render();return}
   if(a==="scheduler-next"){schedulerDate=addDays(schedulerDate||td(),1);render();return}
@@ -542,7 +564,15 @@ function core(t){
  h+=`<h2>Daily core system</h2>`+(dly.map(x=>hrow(x,t)).join("")||'<div class="card mut">No daily habits yet.</div>');
  wk.forEach(x=>{const c=weekCount(x),todaySessions=x.log[td()]||0,p=Math.min(100,Math.round(100*c/x.target));h+=`<div class="card"><div class="row"><div class="g">${esc(x.name)}<div class="mut">${c}/${x.target} this week${todaySessions?` · ${todaySessions} today`:""}</div></div><div class="session-actions"><button data-a="sess" data-id="${x.id}"><i data-lucide="plus"></i> Session</button>${todaySessions?`<button class="ghost" data-a="desess" data-id="${x.id}" aria-label="Remove today's session"><i data-lucide="minus"></i></button>`:""}</div></div>${bar(p)}</div>`});
  return h}
-document.addEventListener("change",e=>{if(e.target.dataset.a!=="habval")return;
+document.addEventListener("change",async e=>{
+ if(e.target.matches(".profile-photo-input")){
+  const input=e.target,file=input.files?.[0];if(!file)return;
+  try{S.profile=S.profile||{};S.profile.photo=await profilePhotoData(file);const saved=save();render();if(saved)toast("Profile photo updated.")}
+  catch(error){toast(error instanceof Error?error.message:"The profile photo could not be saved.")}
+  finally{if(input.isConnected)input.value=""}
+  return;
+ }
+ if(e.target.dataset.a!=="habval")return;
  const h=S.habits.find(y=>y.id===e.target.dataset.id),v=Math.max(0,+e.target.value||0);
  if(v)h.log[td()]=v;else delete h.log[td()];const complete=ok(h,td()),rewards=complete?updateRewards():null;save();if(rewards&&(rewards.earned.length||rewards.newPersonalBest))rewardToast(rewards);else if(complete)toast(h.name.split(":")[0]+" done.");render()});
 

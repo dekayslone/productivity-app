@@ -286,7 +286,15 @@ h3 { margin: 4px 0 0; font: 600 1rem "Space Grotesk", sans-serif; }
 .profile-header { position: relative; display: grid; gap: 0; overflow: hidden; padding: 0; }
 .profile-cover { height: 112px; background: radial-gradient(ellipse at 80% 0%, color-mix(in srgb, var(--ac) 22%, transparent), transparent 42%), linear-gradient(120deg, color-mix(in srgb, var(--ac2) 76%, var(--card)), var(--card) 72%); }
 .profile-identity { position: relative; display: flex; align-items: flex-end; gap: 15px; padding: 0 22px 15px; margin-top: -43px; }
+.profile-photo-wrap { display: flex; flex: none; flex-direction: column; align-items: center; gap: 4px; }
 .profile-avatar { display: grid; width: 86px; height: 86px; flex: none; place-items: center; background: linear-gradient(135deg, var(--ac2), color-mix(in srgb, var(--ac) 26%, white)); color: var(--ac-deep); border: 5px solid var(--card); border-radius: 50%; font: 700 1.4rem "Space Grotesk", sans-serif; box-shadow: inset 0 1px rgba(255,255,255,0.6), 0 5px 16px rgba(25,55,45,.1); }
+.profile-avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.profile-photo-upload, .profile-photo-remove { position: relative; display: inline-flex; min-height: 28px; align-items: center; justify-content: center; gap: 4px; padding: 4px 7px; color: var(--ac-deep); background: var(--card); border: 1px solid var(--bd); border-radius: 8px; cursor: pointer; font: 600 .65rem "Manrope", sans-serif; white-space: nowrap; }
+.profile-photo-upload:hover, .profile-photo-remove:hover { border-color: var(--ac); background: var(--ac2); }
+.profile-photo-upload svg, .profile-photo-remove svg { width: 13px; height: 13px; }
+.profile-photo-input { position: absolute; width: 1px !important; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; }
+.profile-photo-upload:focus-within { outline: 2px solid var(--ac); outline-offset: 2px; }
+.profile-photo-remove { color: var(--mut); }
 .profile-heading { display: grid; min-width: 0; gap: 3px; padding-bottom: 5px; }
 .profile-heading h1 { margin: 0; font: 700 1.8rem/1.1 "Space Grotesk", sans-serif; letter-spacing: 0; }
 .profile-subtitle, .profile-email { color: var(--mut); font-size: .78rem; overflow-wrap: anywhere; }
@@ -310,6 +318,7 @@ h3 { margin: 4px 0 0; font: 600 1rem "Space Grotesk", sans-serif; }
 .profile-form-actions { position: sticky; z-index: 3; bottom: 12px; display: flex; justify-content: flex-end; margin: 2px -4px -4px; padding: 9px; background: color-mix(in srgb, var(--card) 92%, transparent); border: 1px solid var(--bd); border-radius: 13px; box-shadow: var(--shadow); backdrop-filter: blur(14px); }
 .profile-form-actions button { display: inline-flex; align-items: center; gap: 7px; }
 .profile-side-column .mini-stat strong { max-width: 65%; text-align: right; overflow-wrap: anywhere; }
+.avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
 .settings-form { display: grid; gap: 14px; margin-top: 12px; }
 .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .settings-form label { display: grid; gap: 7px; color: var(--mut); font-size: 0.72rem; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
@@ -480,6 +489,8 @@ h3 { margin: 4px 0 0; font: 600 1rem "Space Grotesk", sans-serif; }
 	.profile-cover { height: 86px; }
 	.profile-identity { flex-wrap: wrap; gap: 10px; padding: 0 15px 12px; margin-top: -35px; }
 	.profile-avatar { width: 70px; height: 70px; border-width: 4px; }
+	.profile-photo-wrap { gap: 3px; }
+	.profile-photo-upload, .profile-photo-remove { min-height: 26px; padding: 3px 6px; font-size: .61rem; }
 	.profile-heading { flex: 1 1 calc(100% - 84px); padding-bottom: 0; }
 	.profile-heading h1 { font-size: 1.45rem; }
 	.profile-save-button { min-height: 38px; margin: 4px 0 0 80px; }

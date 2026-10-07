@@ -561,31 +561,28 @@ body[data-mode="dark"] .accountability-partner, body[data-mode="dark"] .email-se
 .challenge-profile-progress strong { margin-left: auto; color: var(--tx); font: 700 0.9rem "Space Grotesk", sans-serif; }
 .personal-best svg { width: 16px; height: 16px; color: var(--ac); }
 .personal-best strong { margin-left: auto; color: var(--tx); text-align: right; }
-.badge-total { display: grid; min-width: 36px; height: 36px; place-items: center; background: var(--ac2); color: var(--ac-deep); border-radius: 999px; font: 700 0.85rem "Space Grotesk", sans-serif; }
-/* Grid of round badges similar to the provided samples */
-.badge-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 14px; justify-items: center; }
-.badge-cell { display: grid; gap: 8px; justify-items: center; text-align: center; }
-.badge-circle { width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, color-mix(in srgb, var(--ac2) 70%, white), color-mix(in srgb, var(--ac) 16%, var(--card))); border: 0; box-shadow: 0 10px 20px rgba(8, 20, 16, 0.08); padding: 6px; }
-.badge-circle .badge-inner { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--card); }
-.badge-circle .badge-inner i { width: 28px; height: 28px; color: var(--ac-deep); }
-.badge-label { color: var(--mut); font-size: 0.74rem; max-width: 84px; overflow-wrap: anywhere; }
-.badge-cell.earned .badge-circle { transform: translateY(-4px); box-shadow: 0 14px 26px rgba(21, 50, 38, 0.12); }
-.badges-empty { display: grid; justify-items: center; gap: 6px; padding: 18px 4px; color: var(--mut); font-size: 0.78rem; }
+.badge-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 10px; margin-top: 14px; }
+.badge-cell { display: grid; min-width: 0; align-content: start; justify-items: center; gap: 5px; text-align: center; }
+.badge-circle { display: grid; width: min(76px, 18vw); aspect-ratio: 1; place-items: center; padding: 7px; border: 0; border-radius: 50%; background: radial-gradient(circle at 32% 25%, color-mix(in srgb, var(--badge-color) 58%, white), var(--badge-color) 62%, color-mix(in srgb, var(--badge-color) 70%, black)); box-shadow: 0 7px 15px color-mix(in srgb, var(--badge-color, #347baa) 32%, transparent), inset 0 1px 2px rgba(255, 255, 255, .65); }
+.badge-cell:nth-child(6n + 1) .badge-circle { --badge-color: #8b18c7; }
+.badge-cell:nth-child(6n + 2) .badge-circle { --badge-color: #4778ed; }
+.badge-cell:nth-child(6n + 3) .badge-circle { --badge-color: #d748bb; }
+.badge-cell:nth-child(6n + 4) .badge-circle { --badge-color: #40a36e; }
+.badge-cell:nth-child(6n + 5) .badge-circle { --badge-color: #7775e8; }
+.badge-cell:nth-child(6n) .badge-circle { --badge-color: #d94843; }
+.badge-medal { display: grid; width: 100%; height: 100%; place-items: center; color: #fff9df; border: 1px solid rgba(255, 255, 255, 0.76); border-radius: 50%; background: radial-gradient(circle at 35% 28%, #fff6bd, #f6ba43 52%, #d87919); box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.3), 0 2px 5px rgba(28, 23, 17, 0.3); }
+.badge-cell:nth-child(6n + 2) .badge-medal { background: radial-gradient(circle at 35% 28%, #e4f7ff, #48afe0 52%, #1767b6); }
+.badge-cell:nth-child(6n + 3) .badge-medal { background: radial-gradient(circle at 35% 28%, #ffe4fb, #e36cce 52%, #a52fa2); }
+.badge-cell:nth-child(6n + 4) .badge-medal { background: radial-gradient(circle at 35% 28%, #e1ffe9, #50ca8c 52%, #168255); }
+.badge-cell:nth-child(6n + 5) .badge-medal { background: radial-gradient(circle at 35% 28%, #f0e8ff, #9771ea 52%, #5734b2); }
+.badge-cell:nth-child(6n) .badge-medal { background: radial-gradient(circle at 35% 28%, #ffe5dc, #fa8062 52%, #c63c36); }
+.badge-medal svg { width: 29px; height: 29px; stroke-width: 2.4; filter: drop-shadow(0 1px 1px rgba(53, 29, 9, .3)); }
+.badge-label { max-width: 100%; color: var(--tx); font-size: 0.7rem; line-height: 1.2; overflow-wrap: anywhere; }
+.badge-description { max-width: 100%; margin: 0; color: var(--mut); font-size: 0.62rem; line-height: 1.35; overflow-wrap: anywhere; }
+.badge-earned-date { color: var(--mut); font-size: 0.58rem; line-height: 1.25; }
+.badges-empty { display: grid; grid-column: 1 / -1; justify-items: center; gap: 6px; padding: 18px 4px; color: var(--mut); font-size: 0.78rem; text-align: center; }
 .badges-empty svg { width: 28px; height: 28px; color: var(--ac); }
 .badges-empty strong { color: var(--tx); font: 600 0.95rem "Space Grotesk", sans-serif; }
-
-/* celebratory banner at bottom */
-.badges-banner { margin-top: 18px; border-radius: 12px; padding: 12px; background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 72%, #ffffff), color-mix(in srgb, var(--ac2) 60%, var(--card))); color: white; box-shadow: 0 10px 28px rgba(10, 34, 28, 0.18); }
-.badges-banner .banner-content { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
-.badges-banner strong { font: 700 0.95rem "Space Grotesk", sans-serif; }
-.badges-banner span { opacity: 0.95; font-size: 0.86rem; }
-
-@media (max-width: 420px) {
- .badge-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
- .badge-circle { width: 64px; height: 64px; }
- .badge-circle .badge-inner { width: 48px; height: 48px; }
- .badge-label { font-size: 0.68rem; max-width: 68px; }
-}
 .weekly-preview-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(18, 29, 27, 0.62); }
 .weekly-preview-dialog { display: flex; width: min(760px, 100%); max-height: min(92dvh, 920px); flex-direction: column; overflow: hidden; border: 1px solid var(--bd); border-radius: 8px; background: var(--card); box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24); }
 .weekly-preview-header { display: flex; flex: none; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--bd); }

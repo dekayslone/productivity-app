@@ -561,18 +561,31 @@ body[data-mode="dark"] .accountability-partner, body[data-mode="dark"] .email-se
 .challenge-profile-progress strong { margin-left: auto; color: var(--tx); font: 700 0.9rem "Space Grotesk", sans-serif; }
 .personal-best svg { width: 16px; height: 16px; color: var(--ac); }
 .personal-best strong { margin-left: auto; color: var(--tx); text-align: right; }
-.badge-total { display: grid; min-width: 28px; height: 28px; place-items: center; background: var(--ac2); color: var(--ac-deep); border-radius: 50%; font: 700 0.75rem "Space Grotesk", sans-serif; }
-.badge-list { display: grid; gap: 9px; margin-top: 12px; }
-.badge-item { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding: 11px; border: 1px solid var(--bd); border-radius: 9px; background: color-mix(in srgb, var(--ac2) 26%, var(--card)); }
-.badge-mark { display: grid; width: 34px; height: 34px; flex: none; place-items: center; color: var(--ac-deep); background: var(--ac2); border-radius: 9px; }
-.badge-mark svg { width: 18px; height: 18px; }
-.badge-item > div { min-width: 0; }
-.badge-item strong { color: var(--tx); font: 600 0.8rem "Space Grotesk", sans-serif; overflow-wrap: anywhere; }
-.badge-item p { margin: 2px 0 4px; color: var(--mut); font-size: 0.7rem; }
-.badge-item time { color: var(--mut); font-size: 0.64rem; }
-.badges-empty { display: grid; justify-items: start; gap: 5px; padding: 14px 2px; color: var(--mut); font-size: 0.72rem; }
-.badges-empty svg { width: 20px; height: 20px; margin-bottom: 3px; color: var(--ac); }
-.badges-empty strong { color: var(--tx); font: 600 0.83rem "Space Grotesk", sans-serif; }
+.badge-total { display: grid; min-width: 36px; height: 36px; place-items: center; background: var(--ac2); color: var(--ac-deep); border-radius: 999px; font: 700 0.85rem "Space Grotesk", sans-serif; }
+/* Grid of round badges similar to the provided samples */
+.badge-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 14px; justify-items: center; }
+.badge-cell { display: grid; gap: 8px; justify-items: center; text-align: center; }
+.badge-circle { width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, color-mix(in srgb, var(--ac2) 70%, white), color-mix(in srgb, var(--ac) 16%, var(--card))); border: 0; box-shadow: 0 10px 20px rgba(8, 20, 16, 0.08); padding: 6px; }
+.badge-circle .badge-inner { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--card); }
+.badge-circle .badge-inner i { width: 28px; height: 28px; color: var(--ac-deep); }
+.badge-label { color: var(--mut); font-size: 0.74rem; max-width: 84px; overflow-wrap: anywhere; }
+.badge-cell.earned .badge-circle { transform: translateY(-4px); box-shadow: 0 14px 26px rgba(21, 50, 38, 0.12); }
+.badges-empty { display: grid; justify-items: center; gap: 6px; padding: 18px 4px; color: var(--mut); font-size: 0.78rem; }
+.badges-empty svg { width: 28px; height: 28px; color: var(--ac); }
+.badges-empty strong { color: var(--tx); font: 600 0.95rem "Space Grotesk", sans-serif; }
+
+/* celebratory banner at bottom */
+.badges-banner { margin-top: 18px; border-radius: 12px; padding: 12px; background: linear-gradient(90deg, color-mix(in srgb, var(--ac) 72%, #ffffff), color-mix(in srgb, var(--ac2) 60%, var(--card))); color: white; box-shadow: 0 10px 28px rgba(10, 34, 28, 0.18); }
+.badges-banner .banner-content { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+.badges-banner strong { font: 700 0.95rem "Space Grotesk", sans-serif; }
+.badges-banner span { opacity: 0.95; font-size: 0.86rem; }
+
+@media (max-width: 420px) {
+ .badge-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+ .badge-circle { width: 64px; height: 64px; }
+ .badge-circle .badge-inner { width: 48px; height: 48px; }
+ .badge-label { font-size: 0.68rem; max-width: 68px; }
+}
 .weekly-preview-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(18, 29, 27, 0.62); }
 .weekly-preview-dialog { display: flex; width: min(760px, 100%); max-height: min(92dvh, 920px); flex-direction: column; overflow: hidden; border: 1px solid var(--bd); border-radius: 8px; background: var(--card); box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24); }
 .weekly-preview-header { display: flex; flex: none; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--bd); }
@@ -643,7 +656,7 @@ body[data-mode="dark"] .accountability-partner, body[data-mode="dark"] .email-se
 @media (max-width: 1024px) {
 	#topbar { max-width: none; min-height: 66px; margin-left: 0; padding: 0 26px; }
 	main { width: auto; max-width: 1120px; margin: 0 auto; padding: 30px 26px 132px; }
-	nav { top: auto; right: auto; left: 50%; bottom: max(10px, env(safe-area-inset-bottom, 0px)); display: grid; width: min(760px, calc(100% - 24px)); height: auto; transform: translateX(-50%); grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-rows: 54px; align-items: stretch; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); gap: 3px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; box-shadow: 0 14px 36px rgba(23, 31, 31, 0.2); }
+	nav { top: auto; right: auto; left: 50%; bottom: max(10px, env(safe-area-inset-bottom, 0px)); display: grid; width: min(760px, calc(100% - 24px)); height: auto; transform: translateX(-50%); grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-rows: 54px; align-items: stretch; padding: 6px 8px; gap: 3px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; box-shadow: 0 14px 36px rgba(23, 31, 31, 0.2); }
 	.brand, .nav-label { display: none; }
 	nav button { display: flex; min-width: 0; min-height: 44px; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 100%; padding: 5px 2px; font-size: clamp(.57rem, 1.15vw, .7rem); line-height: 1.15; text-align: center; }
 	nav button.on::before { top: -4px; left: 50%; width: 22px; height: 2px; transform: translateX(-50%); }
@@ -661,7 +674,7 @@ body[data-mode="dark"] .accountability-partner, body[data-mode="dark"] .email-se
 	select,
 	textarea { font-size: 16px; }
 	main { padding: 26px 14px 126px; }
-	nav { width: calc(100% - 16px); grid-auto-rows: 50px; padding: 5px 5px calc(5px + env(safe-area-inset-bottom, 0px)); gap: 2px; border-radius: 15px; }
+	nav { width: calc(100% - 16px); grid-auto-rows: 50px; padding: 5px; gap: 2px; border-radius: 15px; }
 	nav button { gap: 2px; padding: 4px 1px; font-size: .64rem; }
 	nav > button .nav-icon { width: 16px; height: 16px; margin-bottom: 1px; }
 	.stats { gap: 7px; }

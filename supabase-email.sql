@@ -145,6 +145,48 @@ $$;
 
 do $$
 begin
+  if not exists (
+    select 1 from public.email_marketing_rollout
+    where rollout_key = 'default_all_email_preferences'
+  ) then
+    update public.focus_state
+    set state = jsonb_set(
+      coalesce(state, '{}'::jsonb),
+      '{profile}',
+      (case when jsonb_typeof(state->'profile') = 'object' then state->'profile' else '{}'::jsonb end) || jsonb_build_object(
+        'emailPreferences',
+        jsonb_build_object(
+          'dailyReminder', true,
+          'dailyTime', '08:00',
+          'weeklyMetrics', true,
+          'weeklyDay', 1,
+          'monthlyWins', true,
+          'monthlyDay', 1,
+          'weeklyQuote', true,
+          'weeklyQuoteDay', 1,
+          'weeklyQuoteTime', '08:00',
+          'whatsNew', true,
+          'newsletter', true
+        ) || jsonb_strip_nulls(
+          case
+            when jsonb_typeof(state->'profile'->'emailPreferences') = 'object'
+              then state->'profile'->'emailPreferences'
+            else '{}'::jsonb
+          end
+        )
+      ),
+      true
+    ),
+    updated_at = now();
+
+    insert into public.email_marketing_rollout (rollout_key)
+    values ('default_all_email_preferences');
+  end if;
+end;
+$$;
+
+do $$
+begin
   if not exists (select 1 from pg_catalog.pg_policies where schemaname='public' and tablename='email_campaigns' and policyname='Email admins read campaigns') then
     create policy "Email admins read campaigns" on public.email_campaigns
       for select to authenticated

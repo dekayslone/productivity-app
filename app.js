@@ -20,15 +20,16 @@ function normalizeState(state,user){
  return normalized
 }
 let tab="today",gm=null,mem={},analyticsFocus=null,editingGoal=null,editingTask=null,schedulerDate=null,analyticsMonth=null,authUser=null,cloudHydrated=false,authMode="login",weeklyPreviewOpen=false,mobileMoreOpen=false,notificationOpen=false,notificationFilter="all",reviewRecap=null,reviewRecapPage=0,badgeDetailIndex=null,settingsSection=null,settingsOrigin=false,storagePersistenceRequested=false,cloudWriteQueue=Promise.resolve(),pendingCloudSnapshot=null,pendingCloudLocalSaved=true,appNotificationShownFor=null,appNotificationStorageWarningFor=null;
+let recapStateReady=false;
 S=normalizeState(S,null);
-const save=()=>{if(authUser){S.meta=S.meta||{};S.meta.cloudUserId=authUser.id;S.meta.updatedAt=new Date().toISOString()}let snapshot;try{snapshot=JSON.stringify(S)}catch(e){toast("Could not prepare this change for saving. Keep this page open and try again.");return false}let localSaved=true;try{localStorage.setItem(authUser?`${K}_${authUser.id}`:K,snapshot)}catch(e){localSaved=false;toast("Device storage is unavailable. Cloud sync will be attempted.")}if(authUser&&cloudHydrated)syncCloud(snapshot,localSaved);return localSaved};
+const save=()=>{if(recapStateReady){refreshRecapSnapshots();trackStreakFreezeUse()}if(authUser){S.meta=S.meta||{};S.meta.cloudUserId=authUser.id;S.meta.updatedAt=new Date().toISOString()}let snapshot;try{snapshot=JSON.stringify(S)}catch(e){toast("Could not prepare this change for saving. Keep this page open and try again.");return false}let localSaved=true;try{localStorage.setItem(authUser?`${K}_${authUser.id}`:K,snapshot)}catch(e){localSaved=false;toast("Device storage is unavailable. Cloud sync will be attempted.")}if(authUser&&cloudHydrated)syncCloud(snapshot,localSaved);return localSaved};
 function requestStoragePersistence(){if(storagePersistenceRequested)return;storagePersistenceRequested=true;try{navigator.storage?.persist?.().catch(()=>{})}catch(e){}}
 document.addEventListener("pointerdown",requestStoragePersistence,{once:true});
 document.addEventListener("keydown",requestStoragePersistence,{once:true});
 if(!S.meta.lastDay || !S.history || !S.weeklyHistory){S.meta=S.meta||{lastDay:null};S.history=S.history||{};S.weeklyHistory=S.weeklyHistory||{};save();}
-const buildDailySummary=(date=td())=>{const tasks=allTasks().filter(x=>x.t.done&&x.t.doneOn===date),habitEntries=S.habits.map(h=>({id:h.id,name:h.name,target:h.target||1,value: h.log[date]||0,done:(h.kind==="weekly"?(h.log[date]||0)>0:(h.log[date]||0)>=((h.target||1)))})).filter(h=>h.done||h.value>0),completedHabits=habitEntries.filter(h=>h.done).length,totalTasks=tasks.length,totalHabits=habitEntries.length,score=totalTasks+totalHabits?Math.round((completedHabits+totalTasks)/(totalTasks+totalHabits||1)*100):0;return {date,tasks:tasks.map(x=>({id:x.t.id,title:x.t.t,goal:x.g?.title||"Independent",project:x.p?.title||"",doneOn:x.t.doneOn,category:x.t.cat||"General"})),habits:habitEntries,completedTasks:totalTasks,completedHabits,score,totalActivities:totalTasks+totalHabits};};
+const buildDailySummary=(date=td())=>{const tasks=allTasks().filter(({t})=>t.due===date||t.doneOn===date),habitEntries=S.habits.map(h=>({id:h.id,name:h.name,target:h.target||1,unit:h.unit||"",kind:h.kind||"daily",value:Number(h.log[date])||0,done:ok(h,date)})),completedHabits=habitEntries.filter(h=>h.done).length,completedTasks=tasks.filter(({t})=>t.done&&t.doneOn===date).length,totalTasks=tasks.length,totalHabits=habitEntries.filter(h=>h.kind!=="weekly").length,totalActivities=totalTasks+totalHabits,score=totalActivities?Math.round((completedHabits+completedTasks)/totalActivities*100):0;return {date,tasks:tasks.map(({t,g,p})=>({id:t.id,title:t.t,goal:g?.title||"Independent",project:p?.title||"",due:t.due||"",done:!!t.done,doneOn:t.doneOn||"",category:t.cat||"General",group:t.group||"",milestone:!!t.ms,subtasks:Array.isArray(t.subtasks)?t.subtasks.map(subtask=>({title:subtask.t,done:!!subtask.done})):[]})),habits:habitEntries,completedTasks,completedHabits,score,totalActivities};};
 const buildWeeklySummary=(date=td())=>{const day=new Date(date+"T12:00");const start=new Date(day);const offset=(day.getDay()+6)%7;start.setDate(day.getDate()-offset);const end=new Date(start);end.setDate(start.getDate()+6);const weeks=[...Array(7)].map((_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);return ld(d)});const days=weeks.map(d=>buildDailySummary(d));const totalCompleted=days.reduce((sum,item)=>sum+item.completedTasks+item.completedHabits,0);return {weekStart:ld(start),weekEnd:ld(end),days,totalCompleted,score:days.length?Math.round(days.reduce((sum,item)=>sum+item.score,0)/days.length):0};};
-const checkpointDay=(date=td())=>{if(!S.meta.lastDay){S.meta.lastDay=date;save();return}if(S.meta.lastDay===date)return;const previous=S.meta.lastDay;S.history[previous]=buildDailySummary(previous);S.weeklyHistory[previous]=buildWeeklySummary(previous);S.meta.lastDay=date;save();};
+const checkpointDay=(date=td())=>{if(!S.meta.lastDay){S.meta.lastDay=date;save();return}if(S.meta.lastDay===date)return;const previous=S.meta.lastDay;S.history[previous]=mergeDailySummary(S.history[previous],buildDailySummary(previous));S.weeklyHistory[previous]=buildWeeklySummary(previous);if(recapStateReady)refreshRecapSnapshots(previous);S.meta.lastDay=date;save();};
 async function syncCloud(snapshot=JSON.stringify(S),localSaved=true){if(!db||!authUser)return false;const userId=authUser.id;let state;try{state=JSON.parse(snapshot)}catch(e){toast("Cloud sync skipped because the saved state could not be prepared.");return false}pendingCloudSnapshot=snapshot;pendingCloudLocalSaved=localSaved;const write=cloudWriteQueue.catch(()=>{}).then(async()=>{if(!authUser||authUser.id!==userId)return false;const{error}=await db.from("focus_state").upsert({user_id:userId,state,updated_at:new Date().toISOString()});if(error)throw error;return true});cloudWriteQueue=write;try{const synced=await write;if(synced&&pendingCloudSnapshot===snapshot)pendingCloudSnapshot=null;return synced}catch(e){toast(localSaved?"Cloud sync failed. Changes remain saved on this device.":"Cloud sync failed and device storage is unavailable. It will retry when online or after your next change.");return false}}
 window.addEventListener("online",()=>{if(authUser&&cloudHydrated&&pendingCloudSnapshot)syncCloud(pendingCloudSnapshot,pendingCloudLocalSaved)});
 async function loadCloud(){
@@ -36,7 +37,7 @@ async function loadCloud(){
   if(cloudHydrated&&S.meta?.cloudUserId===authUser.id&&!document.body.classList.contains("auth-mode"))return;
   const user=authUser,storageKey=`${K}_${user.id}`;
   let localState=null,onboardingPending=false;
-  cloudHydrated=false;pendingCloudSnapshot=null;
+  cloudHydrated=false;recapStateReady=false;pendingCloudSnapshot=null;
   try{
     const saved=localStorage.getItem(storageKey);
     if(saved)localState=JSON.parse(saved);
@@ -62,18 +63,20 @@ async function loadCloud(){
     S.profile.email=S.profile.email||user.email||"";
     S.meta.cloudUserId=user.id;S.meta.updatedAt=S.meta.updatedAt||data?.updated_at||new Date().toISOString();
     updateRewards();
+    recapStateReady=true;refreshRecapSnapshots();trackStreakFreezeUse();
     let localSaved=true;try{localStorage.setItem(storageKey,JSON.stringify(S))}catch(e){localSaved=false;toast("Cloud data loaded but could not be saved on this device.")}
     cloudHydrated=true;syncCloud(JSON.stringify(S),localSaved);
     if(onboardingPending){showOnboarding();return}
-    document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();checkDailyAppNotification();
+    document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();showPendingStreakFreezeNotification();checkDailyAppNotification();
   }catch(e){
     if(!authUser||authUser.id!==user.id)return;
     if(!localState){cloudHydrated=false;showCloudLoadError(`Could not load this account’s cloud data: ${e instanceof Error?e.message:String(e)}. No local backup was found, and no empty data has been saved.`);return}
     toast("Could not load cloud data. Using this account's saved data.");
     S=normalizeState(onboardingPending?emptyState(user):S,user);S.profile.email=S.profile.email||user.email||"";S.meta.cloudUserId=user.id;S.meta.updatedAt=S.meta.updatedAt||new Date().toISOString();
+    recapStateReady=true;refreshRecapSnapshots();trackStreakFreezeUse();
     try{localStorage.setItem(storageKey,JSON.stringify(S))}catch(storageError){toast("This account's data could not be saved on this device.")}
     if(onboardingPending){showOnboarding();return}
-    document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();checkDailyAppNotification();
+    document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();showPendingStreakFreezeNotification();checkDailyAppNotification();
   }
 }
 function showAppLoading(message="Loading your workspace…"){document.body.classList.add("auth-mode");document.getElementById("auth").innerHTML=`<div class="auth-shell"><section class="auth-card auth-loading" role="status" aria-live="polite"><span class="brand-mark"><i data-lucide="sparkles"></i></span><h1>${esc(message)}</h1><p>Your data stays private while we check your account.</p><span class="loading-indicator"></span></section></div>`;if(window.lucide)lucide.createIcons()}
@@ -91,7 +94,7 @@ function showAuth(message=""){
  root.innerHTML=`<div class="auth-shell"><div class="auth-layout"><form class="auth-card" data-f="auth"><div class="auth-brand"><span class="brand-mark"><i data-lucide="sparkles"></i></span><strong>Hoptasks</strong></div><span class="eyebrow">${update?"SECURE RECOVERY":reset?"PASSWORD RESET":login?"WELCOME BACK":"CREATE YOUR ACCOUNT"}</span><h1>${update?"Choose a new password.":reset?"Reset your password.":login?"Return to your rhythm.":"Start your focus system."}</h1><p>${update?"Create a new password for your Focus account.":reset?"Enter your email and we’ll send you a secure reset link.":login?"Sign in to sync your goals, tasks, habits, and reviews.":"Create an account to keep your progress safe across devices."}</p>${message?`<div class="auth-message">${esc(message)}</div>`:""}${credentials}<button type="submit">${update?"Save new password":reset?"Send reset link":login?"Sign in":"Create account"}</button>${update?"":reset?`<button type="button" class="ghost auth-switch" data-a="auth-back">Back to sign in</button>`:`${login?`<button type="button" class="auth-forgot" data-a="auth-reset">Forgot your password?</button>`:""}<button type="button" class="ghost auth-switch" data-a="auth-switch">${login?"Create a new account":"I already have an account"}</button>`}</form><aside class="auth-aside"><span class="auth-quote-mark">“</span><blockquote>Start with the task that matters most, and let focused action create momentum.</blockquote><div class="auth-quote-source"><span class="auth-avatar">F</span><span><strong>Hoptasks system</strong><small>Built for deliberate progress</small></span></div></aside></div></div>`;
  if(window.lucide)lucide.createIcons()
 }
-async function initAuth(){if(!db){toast("Supabase is unavailable. Using local data.");return}showAppLoading("Checking your account…");try{const{data,error}=await db.auth.getSession();if(error)throw error;if(data.session){authUser=data.session.user;if(window.location.hash.includes("type=recovery")){authMode="update";showAuth()}else await loadCloud()}else showAuth();db.auth.onAuthStateChange((event,session)=>{if(session){const accountChanged=authUser?.id!==session.user.id;authUser=session.user;if(event==="PASSWORD_RECOVERY"){authMode="update";showAuth()}else if(authMode!=="update"){if(accountChanged){cloudHydrated=false;showAppLoading("Loading your workspace…")}setTimeout(()=>{if(authUser?.id===session.user.id)loadCloud()},0)}}else{authUser=null;cloudHydrated=false;document.body.classList.add("auth-mode");showAuth()}})}catch(e){document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();toast(`Could not connect to Supabase: ${e instanceof Error?e.message:String(e)}. Using local data.`)}}
+async function initAuth(){if(!db){recapStateReady=true;refreshRecapSnapshots();trackStreakFreezeUse();save();toast("Supabase is unavailable. Using local data.");render();showPendingStreakFreezeNotification();return}showAppLoading("Checking your account…");try{const{data,error}=await db.auth.getSession();if(error)throw error;if(data.session){authUser=data.session.user;if(window.location.hash.includes("type=recovery")){authMode="update";showAuth()}else await loadCloud()}else showAuth();db.auth.onAuthStateChange((event,session)=>{if(session){const accountChanged=authUser?.id!==session.user.id;authUser=session.user;if(event==="PASSWORD_RECOVERY"){authMode="update";showAuth()}else if(authMode!=="update"){if(accountChanged){cloudHydrated=false;showAppLoading("Loading your workspace…")}setTimeout(()=>{if(authUser?.id===session.user.id)loadCloud()},0)}}else{authUser=null;cloudHydrated=false;document.body.classList.add("auth-mode");showAuth()}})}catch(e){recapStateReady=true;refreshRecapSnapshots();trackStreakFreezeUse();save();document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();showPendingStreakFreezeNotification();toast(`Could not connect to Supabase: ${e instanceof Error?e.message:String(e)}. Using local data.`)}}
 const authErrorMessage=(error,mode)=>{const msg=String(error?.message||error||"").trim();if(!msg)return "Authentication is unavailable. Please try again.";const lower=msg.toLowerCase();if(lower.includes("rate limit")||lower.includes("too many requests")||lower.includes("email rate limit exceeded")){return mode==="reset"?"Too many reset emails were sent. Please wait a few minutes before requesting another one.":"Too many attempts were made. Please wait a few minutes and try again."}if(lower.includes("invalid login credentials")||lower.includes("user not found")){return "Incorrect email or password."}if(lower.includes("passwords do not match")){return "The passwords do not match."}if(lower.includes("already registered")||lower.includes("already exists")){return "An account already exists for this email."}return msg;};
 const uid=()=>crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2,9);
 const ld=d=>d.toLocaleDateString("en-CA");
@@ -124,7 +127,7 @@ function notificationCenter(){
 let appNotificationTimer=null;
 function showAppNotification({title,detail,icon="bell-ring",tabName="today",action="Open Hoptasks"}){
  const root=document.getElementById("app-notification");if(!root||document.body.classList.contains("auth-mode"))return;
- root.innerHTML=`<section class="app-notification-toast" role="status" aria-live="polite"><span class="app-notification-icon"><i data-lucide="${icon}"></i></span><div class="app-notification-copy"><strong>${esc(title)}</strong><span>${esc(detail)}</span><button type="button" data-tab="${tabName}">${esc(action)}</button></div><button type="button" class="app-notification-close" data-a="app-notification-close" aria-label="Dismiss notification"><i data-lucide="x"></i></button></section>`;
+ root.innerHTML=`<section class="app-notification-toast" role="status" aria-live="polite"><span class="app-notification-icon"><i data-lucide="${icon}"></i></span><div class="app-notification-copy"><span class="app-notification-eyebrow">A QUICK CHECK-IN</span><strong>${esc(title)}</strong><span class="app-notification-detail">${esc(detail)}</span><button type="button" data-tab="${tabName}">${esc(action)}<i data-lucide="arrow-right"></i></button></div><button type="button" class="app-notification-close" data-a="app-notification-close" aria-label="Dismiss notification"><i data-lucide="x"></i></button></section>`;
  root.classList.add("is-visible");if(window.lucide)lucide.createIcons();
  clearTimeout(appNotificationTimer);appNotificationTimer=setTimeout(()=>{root.classList.remove("is-visible");root.innerHTML=""},9000);
 }
@@ -180,6 +183,31 @@ function streak(h){
  return{days,freezeDaysRemaining:STREAK_FREEZE_DAYS-(monthlyMisses.get(today.slice(0,7))||0),frozenDates};
 }
 const STREAK_MILESTONES=[3,7,14,21,30,45,60,75,90,100,150,200,250,300,365,500,750,1000];
+function trackStreakFreezeUse(){
+ S.streakFreezeUsage=isRecord(S.streakFreezeUsage)?S.streakFreezeUsage:{seen:{},pending:[]};
+ S.streakFreezeUsage.seen=isRecord(S.streakFreezeUsage.seen)?S.streakFreezeUsage.seen:{};
+ S.streakFreezeUsage.pending=Array.isArray(S.streakFreezeUsage.pending)?S.streakFreezeUsage.pending:[];
+ const queued=new Set(S.streakFreezeUsage.pending.map(item=>item.key));
+ for(const habit of S.habits.filter(item=>item.kind!=="weekly")){
+  for(const date of streak(habit).frozenDates){
+   const key=`${habit.id}:${date}`;
+   if(S.streakFreezeUsage.seen[key])continue;
+   S.streakFreezeUsage.seen[key]=true;
+   if(!queued.has(key))S.streakFreezeUsage.pending.push({key,name:habit.name,date});
+  }
+ }
+}
+function showPendingStreakFreezeNotification(){
+ const usage=S.streakFreezeUsage;
+ if(!usage||!Array.isArray(usage.pending)||!usage.pending.length)return;
+ const used=usage.pending.splice(0),names=[...new Set(used.map(item=>item.name))];
+ save();
+ showAppNotification({
+  title:"A streak freeze was used",
+  detail:`${used.length} freeze day${used.length===1?"":"s"} protected ${names.length===1?names[0]:`${names.length} habits`}${used.length===1?` on ${used[0].date}`:""}.`,
+  icon:"snowflake",tabName:"habits",action:"Review streaks"
+ });
+}
 function growthActivityDates(){
  const dates=new Set(allTasks().filter(({t})=>t.done&&t.doneOn).map(({t})=>t.doneOn));
  for(const habit of S.habits)for(const[date,value]of Object.entries(habit.log||{})){
@@ -392,37 +420,130 @@ function review(){
   const avg=cur.length?Math.round(cur.reduce((a,g)=>a+prog(g),0)/cur.length):0;
   const sum=(label,s)=>`${s.done} tasks completed${s.habit!=null?`, habits ${s.habit}% consistent`:""}`;
   const form=(type,s)=>`<div class="card"><b>${type==="week"?"Weekly review":"Monthly review"}</b><div class="mut" style="margin:4px 0 8px">Auto summary: ${sum(type,s)}${type==="month"?`, goals ${avg}% complete`:""}.</div>
-  <form data-f="review" data-type="${type}"><textarea name="w" placeholder="Wins" required></textarea><textarea name="c" placeholder="What got in the way?"></textarea><textarea name="n" placeholder="Focus for next ${type}"></textarea><button>Save review</button></form></div>`;
+  <form data-f="review" data-type="${type}"><textarea name="w" placeholder="Wins" required></textarea><textarea name="c" placeholder="What got in the way?"></textarea><textarea name="n" placeholder="Focus for next ${type}"></textarea><button>Save review</button></form>${type==="week"?`<button type="button" class="ghost weekly-report-download" data-a="download-weekly-report"><i data-lucide="download"></i> Save weekly recap as PDF</button>`:""}</div>`;
   let h=`<h1>Reviews</h1><div class="sub">A few minutes of reflection keeps you honest.</div>`+form("week",ws)+form("month",ms);
+  h+=`<section class="card recap-download-card"><div><span class="eyebrow">TAKE YOUR PROGRESS WITH YOU</span><h2>Download a recap</h2><p>Print or save a PDF with task details, goal progress, and each habit entry.</p></div><div class="recap-download-actions"><button type="button" class="ghost" data-a="download-period-report" data-period="weekly"><i data-lucide="calendar-days"></i> This week · PDF</button><button type="button" class="ghost" data-a="download-period-report" data-period="monthly"><i data-lucide="calendar-range"></i> This month · PDF</button><button type="button" class="ghost" data-a="download-period-report" data-period="yearly"><i data-lucide="calendar"></i> This year · PDF</button></div></section>`;
   h+=`<h2>Past reviews</h2>`+(S.reviews.slice().reverse().map((r,index)=>`<div class="card"><div class="mut">${r.type==="week"?"Week":"Month"} · ${r.date}</div><div class="mut">${esc(r.auto)}</div><p><b>Wins:</b> ${esc(r.w)}</p>${r.c?`<p><b>Obstacles:</b> ${esc(r.c)}</p>`:""}${r.n?`<p><b>Next:</b> ${esc(r.n)}</p>`:""}${r.type==="week"&&r.weeklySummary?`<button type="button" class="ghost review-recap-open" data-a="recap-open" data-review-index="${S.reviews.length-1-index}"><i data-lucide="book-open-check"></i> View weekly recap</button>`:""}</div>`).join("")||`<div class="card mut">No reviews saved yet.</div>`);
   if(reviewRecap)h+=weeklyReviewPopup(reviewRecap,reviewRecapPage);
   return h}
 
 function buildWeeklyReviewSummary(start,end){
-  const days=[...Array(7)].map((_,index)=>addDays(start,index));
+  const days=[...Array(Math.max(1,Math.round((new Date(`${end}T12:00`)-new Date(`${start}T12:00`))/86400000)+1))].map((_,index)=>addDays(start,index));
   const goals=S.goals.map(goal=>{
-    const tasks=tasksOf(goal),active=tasks.filter(task=>(task.due>=start&&task.due<=end)||(task.doneOn>=start&&task.doneOn<=end)),completed=tasks.filter(task=>task.done&&task.doneOn>=start&&task.doneOn<=end);
-    return{title:goal.title,category:goal.cat||"Other",done:completed.length,active:active.length,progress:prog(goal),completedTasks:completed.map(task=>task.t)};
+    const tasks=tasksOf(goal),active=tasks.filter(task=>(task.due>=start&&task.due<=end)||(task.doneOn>=start&&task.doneOn<=end)||(!task.done&&task.due&&task.due<=end)),completed=tasks.filter(task=>task.done&&task.doneOn>=start&&task.doneOn<=end);
+    return{id:goal.id,title:goal.title,category:goal.cat||"Other",done:completed.length,active:active.length,progress:prog(goal),completedTasks:completed.map(task=>task.t)};
   });
+  const tasks=allTasks().filter(({t})=>(t.due>=start&&t.due<=end)||(t.doneOn>=start&&t.doneOn<=end)||(!t.done&&t.due&&t.due<=end))
+    .map(({t,g,p})=>({id:t.id,title:t.t,goalId:g?.id||"",goal:g?.title||"Independent",project:p?.title||"",category:t.cat||"General",done:!!t.done,completedInPeriod:!!t.done&&t.doneOn>=start&&t.doneOn<=end,due:t.due||"",doneOn:t.doneOn||"",subtasks:Array.isArray(t.subtasks)?t.subtasks.map(subtask=>({title:subtask.t,done:!!subtask.done})):[]}));
+  const independentTasks=tasks.filter(task=>task.goal==="Independent").map(task=>({title:task.title,category:task.category,done:task.done,due:task.due}));
   const habits=S.habits.map(habit=>{
     const values=days.map(date=>Number(habit.log?.[date])||0),total=values.reduce((sum,value)=>sum+value,0),met=habit.kind==="weekly"?(total>=(habit.target||1)?1:0):values.filter(value=>value>=(habit.target||1)).length;
-    return{name:habit.name,category:habit.cat||"Other",unit:habit.unit||"",target:habit.target||1,kind:habit.kind||"daily",total,daysLogged:values.filter(value=>value>0).length,met,values};
+    return{id:habit.id,name:habit.name,category:habit.cat||"Other",unit:habit.unit||"",target:habit.target||1,kind:habit.kind||"daily",total,daysLogged:values.filter(value=>value>0).length,met,targetPeriods:habit.kind==="weekly"?1:days.length,values};
   });
-  return{start,end,goals,habits};
+  return{start,end,goals,independentTasks,habits,tasks};
+}
+function periodRecap(start,end){
+  const tasks=allTasks().filter(({t})=>(t.due>=start&&t.due<=end)||(t.doneOn>=start&&t.doneOn<=end)||(!t.done&&t.due&&t.due<=end))
+    .map(({t,g,p})=>({id:t.id,title:t.t,goalId:g?.id||"",goal:g?.title||"Independent",project:p?.title||"",category:t.cat||"General",due:t.due||"",done:!!t.done,doneOn:t.doneOn||"",completedInPeriod:!!t.done&&t.doneOn>=start&&t.doneOn<=end,subtasks:Array.isArray(t.subtasks)?t.subtasks.map(subtask=>({title:subtask.t,done:!!subtask.done})):[]}));
+  const days=[...Array(Math.max(1,Math.round((new Date(`${end}T12:00`)-new Date(`${start}T12:00`))/86400000)+1))].map((_,index)=>addDays(start,index));
+  const habits=S.habits.map(habit=>{
+    const values=days.map(date=>Number(habit.log?.[date])||0),total=values.reduce((sum,value)=>sum+value,0);
+    let met=0,targetPeriods=days.length;
+    if(habit.kind==="weekly"){
+      const weeks=new Map();
+      for(const[dayIndex,date]of days.entries()){
+        const weekStart=addDays(date,-((new Date(`${date}T12:00`).getDay()+6)%7));
+        weeks.set(weekStart,(weeks.get(weekStart)||0)+values[dayIndex]);
+      }
+      targetPeriods=weeks.size;met=[...weeks.values()].filter(value=>value>=(habit.target||1)).length;
+    }else met=values.filter(value=>value>=(habit.target||1)).length;
+    return{id:habit.id,name:habit.name,category:habit.cat||"Other",unit:habit.unit||"",target:habit.target||1,kind:habit.kind||"daily",total,daysLogged:values.filter(value=>value>0).length,met,targetPeriods,values};
+  });
+  const goals=S.goals.map(goal=>({id:goal.id,title:goal.title,category:goal.cat||"Other",progress:prog(goal),tasks:tasks.filter(task=>task.goalId===goal.id)}));
+  return{start,end,tasks,goals,habits};
+}
+function recapTaskKey(task){return task.id||`${task.title}|${task.goalId||task.goal||""}|${task.project||""}|${task.due||""}`}
+function recapHabitKey(habit){return habit.id||`${habit.name}|${habit.category||"Other"}`}
+function mergeDailySummary(previous,current){
+  if(!previous)return current;
+  const tasks=new Map((previous.tasks||[]).map(task=>[recapTaskKey(task),task]));
+  (current.tasks||[]).forEach(task=>tasks.set(recapTaskKey(task),task));
+  const habits=new Map((previous.habits||[]).map(habit=>[recapHabitKey(habit),habit]));
+  (current.habits||[]).forEach(habit=>habits.set(recapHabitKey(habit),habit));
+  return{...previous,...current,tasks:[...tasks.values()],habits:[...habits.values()]};
+}
+function mergePeriodRecap(previous,current){
+  if(!previous)return current;
+  const tasks=new Map((previous.tasks||[]).map(task=>[recapTaskKey(task),task]));
+  (current.tasks||[]).forEach(task=>tasks.set(recapTaskKey(task),task));
+  const taskList=[...tasks.values()],goals=new Map((previous.goals||[]).map(goal=>[goal.id||goal.title,goal]));
+  (current.goals||[]).forEach(goal=>goals.set(goal.id||goal.title,goal));
+  const habits=new Map((previous.habits||[]).map(habit=>[recapHabitKey(habit),habit]));
+  (current.habits||[]).forEach(habit=>habits.set(recapHabitKey(habit),habit));
+  return{...previous,...current,tasks:taskList,goals:[...goals.values()].map(goal=>({...goal,tasks:taskList.filter(task=>task.goalId===(goal.id||""))})),habits:[...habits.values()]};
+}
+function refreshRecapSnapshots(date=td()){
+  S.history[date]=mergeDailySummary(S.history[date],buildDailySummary(date));
+  const day=new Date(`${date}T12:00`),offset=(day.getDay()+6)%7,weekStart=addDays(date,-offset),weekEnd=addDays(weekStart,6),monthStart=`${date.slice(0,7)}-01`,yearStart=`${date.slice(0,4)}-01-01`;
+  S.recapSnapshots=isRecord(S.recapSnapshots)?S.recapSnapshots:{weekly:{},monthly:{},yearly:{}};
+  S.recapSnapshots.weekly=isRecord(S.recapSnapshots.weekly)?S.recapSnapshots.weekly:{};
+  S.recapSnapshots.monthly=isRecord(S.recapSnapshots.monthly)?S.recapSnapshots.monthly:{};
+  S.recapSnapshots.yearly=isRecord(S.recapSnapshots.yearly)?S.recapSnapshots.yearly:{};
+  S.weeklyHistory[weekStart]=mergePeriodRecap(S.weeklyHistory[weekStart],periodRecap(weekStart,weekEnd));
+  S.recapSnapshots.weekly[weekStart]=mergePeriodRecap(S.recapSnapshots.weekly[weekStart],S.weeklyHistory[weekStart]);
+  S.weeklyHistory[weekStart]=S.recapSnapshots.weekly[weekStart];
+  S.recapSnapshots.monthly[date.slice(0,7)]=mergePeriodRecap(S.recapSnapshots.monthly[date.slice(0,7)],periodRecap(monthStart,date));
+  S.recapSnapshots.yearly[date.slice(0,4)]=mergePeriodRecap(S.recapSnapshots.yearly[date.slice(0,4)],periodRecap(yearStart,date));
+}
+function downloadPeriodReport(period){
+  const today=td();
+  if(period==="weekly"){
+    const weekStart=addDays(today,-((new Date(`${today}T12:00`).getDay()+6)%7));
+    const snapshot=S.recapSnapshots?.weekly?.[weekStart]||S.weeklyHistory?.[weekStart];
+    return downloadWeeklyReport(Array.isArray(snapshot?.tasks)&&Array.isArray(snapshot?.habits)?snapshot:periodRecap(weekStart,addDays(weekStart,6)),"Weekly");
+  }
+  if(period==="monthly"){
+    const snapshot=S.recapSnapshots?.monthly?.[today.slice(0,7)];
+    return downloadWeeklyReport(Array.isArray(snapshot?.tasks)&&Array.isArray(snapshot?.habits)?snapshot:periodRecap(`${today.slice(0,7)}-01`,today),"Monthly");
+  }
+  if(period==="yearly"){
+    const snapshot=S.recapSnapshots?.yearly?.[today.slice(0,4)];
+    return downloadWeeklyReport(Array.isArray(snapshot?.tasks)&&Array.isArray(snapshot?.habits)?snapshot:periodRecap(`${today.slice(0,4)}-01-01`,today),"Yearly");
+  }
+  toast("Choose a weekly, monthly, or yearly report.");
+}
+function downloadWeeklyReport(summary=buildWeeklyReviewSummary(addDays(td(),-6),td()),periodLabel="Weekly"){
+  const escapeHtml=value=>String(value??"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+  const taskRows=(summary.tasks||[]).map(task=>`<tr><td>${escapeHtml(task.title)}</td><td>${escapeHtml(task.goal)}</td><td>${escapeHtml(task.project||"—")}</td><td>${escapeHtml(task.due||"—")}</td><td>${escapeHtml(task.doneOn||"—")}</td><td>${task.done?"Completed":"Open"}${task.completedInPeriod?" (in period)":""}</td><td>${(task.subtasks||[]).map(subtask=>`${subtask.done?"✓":"○"} ${escapeHtml(subtask.title)}`).join("<br>")||"—"}</td></tr>`).join("");
+  const habitRows=(Array.isArray(summary.habits)?summary.habits:[]).flatMap(habit=>{
+    if(!Array.isArray(habit.values))return [`<tr><td>${escapeHtml(habit.name)}</td><td>${escapeHtml(habit.category)}</td><td>${escapeHtml(habit.kind==="weekly"?"Weekly":"Daily")}</td><td>${Number(habit.met)||0}</td><td>Historical total</td><td>${Number(habit.total)||0}${habit.unit?` ${escapeHtml(habit.unit)}`:""}</td><td>Saved recap</td></tr>`];
+    return habit.values.map((value,index)=>`<tr><td>${escapeHtml(habit.name)}</td><td>${escapeHtml(habit.category)}</td><td>${escapeHtml(habit.kind==="weekly"?"Weekly":"Daily")}</td><td>${Number(habit.met)||0}/${Number(habit.targetPeriods)||0}</td><td>${escapeHtml(addDays(summary.start,index))}</td><td>${value}${habit.unit?` ${escapeHtml(habit.unit)}`:""}</td><td>${habit.kind==="weekly"?(value?"Logged":"—"):value>=(habit.target||1)?"Target met":"Target not met"}</td></tr>`);
+  }).join("");
+  const goalRows=(summary.goals||[]).map(goal=>`<tr><td>${escapeHtml(goal.title)}</td><td>${escapeHtml(goal.category)}</td><td>${Number(goal.progress)||0}%</td><td>${goal.tasks?goal.tasks.filter(task=>task.completedInPeriod).length:goal.done||0}</td></tr>`).join("");
+  const printWindow=window.open("","_blank");
+  if(!printWindow){toast("Allow pop-ups to open the printable report, then choose Save as PDF.");return}
+  printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Hoptasks ${periodLabel} Report</title><style>*{box-sizing:border-box}body{margin:0;padding:36px;color:#20312b;background:#fff;font:12px/1.5 Arial,sans-serif}header{padding:0 0 22px;border-bottom:3px solid #267b65}header span{color:#267b65;font-weight:bold;letter-spacing:2px;font-size:10px}h1{margin:8px 0 2px;font-size:26px}header p{margin:0;color:#687b72}section{margin-top:24px;break-inside:avoid}h2{margin:0 0 10px;font-size:16px;color:#267b65}table{width:100%;border-collapse:collapse;font-size:10px}th,td{padding:7px;text-align:left;vertical-align:top;border:1px solid #dce8e2}th{background:#edf6f1;color:#20312b}tr{break-inside:avoid}.empty{padding:14px;color:#687b72;background:#f5f8f6}@media print{body{padding:0}section{break-inside:auto}tr{break-inside:avoid}header,section{break-inside:avoid}}</style></head><body><header><span>HOPTASKS · ${escapeHtml(periodLabel.toUpperCase())} RECAP</span><h1>${escapeHtml(periodLabel)} progress</h1><p>${escapeHtml(summary.start)} – ${escapeHtml(summary.end)}</p></header><section><h2>Tasks · ${summary.tasks?.length||0}</h2>${taskRows?`<table><thead><tr><th>Task</th><th>Goal</th><th>Project</th><th>Due</th><th>Completed</th><th>Status</th><th>Subtasks</th></tr></thead><tbody>${taskRows}</tbody></table>`:`<p class="empty">No tasks recorded for this period.</p>`}</section><section><h2>Goals</h2>${goalRows?`<table><thead><tr><th>Goal</th><th>Category</th><th>Overall progress</th><th>Tasks completed in period</th></tr></thead><tbody>${goalRows}</tbody></table>`:`<p class="empty">No goals recorded.</p>`}</section><section><h2>Habits · ${summary.habits.length}</h2>${habitRows?`<table><thead><tr><th>Habit</th><th>Category</th><th>Schedule</th><th>Period targets met</th><th>Date</th><th>Entry</th><th>Status</th></tr></thead><tbody>${habitRows}</tbody></table>`:`<p class="empty">No habits recorded.</p>`}</section><script>window.addEventListener("load",()=>setTimeout(()=>window.print(),250));window.addEventListener("afterprint",()=>window.close());</script></body></html>`);
+  printWindow.document.close();
+  toast("Printable report opened. Choose Save as PDF.");
 }
 function weeklyReviewPopup(summary,page){
-  const habits=summary.habits.filter(habit=>habit.total>0),goalDone=summary.goals.reduce((sum,goal)=>sum+goal.done,0),goalActive=summary.goals.reduce((sum,goal)=>sum+goal.active,0);
+  const goals=Array.isArray(summary.goals)?summary.goals:[],habits=(Array.isArray(summary.habits)?summary.habits:[]).map(habit=>({...habit,unit:typeof habit.unit==="string"?habit.unit:"",category:habit.category||"Other",target:habit.target||1,total:Number(habit.total)||0,met:Number(habit.met)||0,daysLogged:Number(habit.daysLogged)||0,kind:habit.kind||"daily"})),goalDone=summary.tasks?summary.tasks.filter(task=>task.completedInPeriod??task.done).length:goals.reduce((sum,goal)=>sum+(Number(goal.done)||0),0),goalActive=summary.tasks?summary.tasks.length:goals.reduce((sum,goal)=>sum+(Number(goal.active)||0),0);
+  const goalRows=goals.map(goal=>{
+    const tasks=(summary.tasks||[]).filter(task=>task.goalId===goal.id);
+    return `<article class="recap-row"><div class="recap-row-heading"><span><strong>${esc(goal.title)}</strong><small>${esc(goal.category)}</small></span><b>${goal.progress}%</b></div><div class="recap-progress"><i style="width:${goal.progress}%"></i></div><p>${goal.done} completed this week${goal.active?` · ${goal.active} tasks planned, completed, or overdue`:` · No tasks recorded this week`}</p>${tasks.length?`<ul class="recap-task-list">${tasks.map(task=>`<li class="${task.done?"is-complete":""}"><span>${task.done?"Completed":"Open"}</span><strong>${esc(task.title)}</strong>${task.due?`<small>Due ${esc(task.due)}</small>`:""}${task.subtasks?.length?`<small>${task.subtasks.filter(subtask=>subtask.done).length}/${task.subtasks.length} subtasks</small>`:""}</li>`).join("")}</ul>`:""}</article>`;
+  }).join("");
+  const independentTasks=summary.tasks?.filter(task=>task.goal==="Independent")||summary.independentTasks||[];
   const unitTotal=unit=>habits.filter(habit=>habit.unit.toLowerCase()===unit).reduce((sum,habit)=>sum+habit.total,0);
   const prayerMinutes=habits.filter(habit=>["minutes","minute","mins","min"].includes(habit.unit.toLowerCase())&&(`${habit.name} ${habit.category}`).toLowerCase().includes("prayer")).reduce((sum,habit)=>sum+habit.total,0);
   const bibleChapters=habits.filter(habit=>["chapters","chapter"].includes(habit.unit.toLowerCase())&&(`${habit.name} ${habit.category}`).toLowerCase().match(/bible|scripture/)).reduce((sum,habit)=>sum+habit.total,0);
   const pagesRead=unitTotal("pages")+habits.filter(habit=>habit.unit.toLowerCase()==="page").reduce((sum,habit)=>sum+habit.total,0);
   const pages=[
-    `<div class="recap-hero"><span class="eyebrow">YOUR WEEK, IN REVIEW</span><h2>A week of showing up.</h2><p>${summary.start} – ${summary.end}</p></div><div class="recap-metrics"><div><strong>${goalDone}</strong><span>goal tasks completed</span></div><div><strong>${habits.reduce((sum,habit)=>sum+habit.met,0)}</strong><span>habit targets met</span></div><div><strong>${prayerMinutes}</strong><span>minutes in prayer</span></div><div><strong>${bibleChapters}</strong><span>Bible chapters read</span></div><div><strong>${pagesRead}</strong><span>pages read</span></div></div><p class="recap-note">${goalActive?`${goalDone} of ${goalActive} goal tasks in this week’s plan were completed.`:"Your goals are captured here as you start adding tasks."} Your recap is saved with this review.</p>`,
-    `<div class="recap-heading"><span class="eyebrow">GOAL REVIEW · 02</span><h2>What moved forward</h2><p>Percentages show overall goal progress at submission; task counts are for this week.</p></div><div class="recap-list">${summary.goals.map(goal=>`<article class="recap-row"><div class="recap-row-heading"><span><strong>${esc(goal.title)}</strong><small>${esc(goal.category)}</small></span><b>${goal.progress}%</b></div><div class="recap-progress"><i style="width:${goal.progress}%"></i></div><p>${goal.done} completed this week${goal.active?` · ${goal.active} tasks planned or completed`:` · No tasks planned this week`}</p>${goal.completedTasks.length?`<small class="recap-detail">${goal.completedTasks.map(esc).join(" · ")}</small>`:""}</article>`).join("")||`<p class="recap-empty">No goals yet. Add a goal and its task progress will appear here next week.</p>`}</div>`,
+    `<div class="recap-hero"><span class="eyebrow">YOUR WEEK, IN REVIEW</span><h2>A week of showing up.</h2><p>${summary.start} – ${summary.end}</p></div><div class="recap-metrics"><div><strong>${goalDone}</strong><span>tasks completed</span></div><div><strong>${habits.reduce((sum,habit)=>sum+habit.met,0)}</strong><span>habit targets met</span></div><div><strong>${prayerMinutes}</strong><span>minutes in prayer</span></div><div><strong>${bibleChapters}</strong><span>Bible chapters read</span></div><div><strong>${pagesRead}</strong><span>pages read</span></div></div><p class="recap-note">${goalActive?`${goalDone} of ${goalActive} relevant tasks were completed during this week.`:"Your goals are captured here as you start adding tasks."} This recap is saved with your review.</p>`,
+    `<div class="recap-heading"><span class="eyebrow">GOAL REVIEW · 02</span><h2>What moved forward</h2><p>Task details include due dates, completion status, and subtasks; goal progress is current at recap time.</p></div><div class="recap-list">${goalRows||`<p class="recap-empty">No goals yet. Add a goal and its task progress will appear here next week.</p>`}${independentTasks.length?`<article class="recap-row"><div class="recap-row-heading"><span><strong>Independent tasks</strong><small>Tasks not linked to a goal</small></span><b>${independentTasks.filter(task=>task.done).length}/${independentTasks.length}</b></div><ul class="recap-task-list">${independentTasks.map(task=>`<li class="${task.done?"is-complete":""}"><span>${task.done?"Completed":"Open"}</span><strong>${esc(task.title)}</strong>${task.due?`<small>Due ${esc(task.due)}</small>`:""}</li>`).join("")}</ul></article>`:""}</div>`,
     `<div class="recap-heading"><span class="eyebrow">HABIT REVIEW · 03</span><h2>Your effort, counted</h2><p>Quantities come directly from your daily habit entries.</p></div><div class="recap-list">${habits.map(habit=>{const unit=habit.unit.replace(/s$/i,habit.target===1?"":"s");return `<article class="recap-row"><div class="recap-row-heading"><span><strong>${esc(habit.name)}</strong><small>${esc(habit.category)}${habit.unit?` · ${esc(habit.unit)}`:""}</small></span><b>${habit.total}${habit.unit?` ${esc(habit.unit)}`:""}</b></div><p>${habit.kind==="weekly"?`${habit.met?"Weekly target met":"Weekly target not met"} · target ${habit.target}`:`${habit.daysLogged} days logged · ${habit.met}/7 daily targets met · target ${habit.target}${unit?` ${esc(unit)}`:""}`}</p></article>`}).join("")||`<p class="recap-empty">No habit quantities were logged this week. Your next check-in will show them here.</p>`}</div>`
   ];
   const labels=["Overview","Goals","Habits"];
-  return `<div class="review-recap-backdrop" data-a="recap-backdrop"><section class="review-recap-dialog" role="dialog" aria-modal="true" aria-label="Weekly review recap"><header class="review-recap-top"><span class="recap-brand"><i data-lucide="sparkles"></i> WEEKLY REFLECTION</span><button type="button" class="ghost" data-a="recap-close" aria-label="Close weekly recap"><i data-lucide="x"></i></button></header><div class="review-recap-content">${pages[page]}</div><nav class="recap-pages" aria-label="Recap pages">${labels.map((label,index)=>`<button type="button" data-a="recap-page" data-page="${index}" class="${index===page?"active":""}" aria-label="${label}, page ${index+1}" aria-current="${index===page?"step":"false"}"><span>${String(index+1).padStart(2,"0")}</span><small>${label}</small></button>`).join("")}</nav><footer class="review-recap-footer"><span>Page ${page+1} of ${pages.length}</span><div>${page?`<button type="button" class="ghost" data-a="recap-prev"><i data-lucide="arrow-left"></i> Back</button>`:""}${page<pages.length-1?`<button type="button" data-a="recap-next">Continue <i data-lucide="arrow-right"></i></button>`:`<button type="button" data-a="recap-close">Done <i data-lucide="check"></i></button>`}</div></footer></section></div>`;
+  return `<div class="review-recap-backdrop" data-a="recap-backdrop"><section class="review-recap-dialog" role="dialog" aria-modal="true" aria-label="Weekly review recap"><header class="review-recap-top"><span class="recap-brand"><i data-lucide="sparkles"></i> WEEKLY REFLECTION</span><button type="button" class="ghost" data-a="recap-close" aria-label="Close weekly recap"><i data-lucide="x"></i></button></header><div class="review-recap-content">${pages[page]}</div><nav class="recap-pages" aria-label="Recap pages">${labels.map((label,index)=>`<button type="button" data-a="recap-page" data-page="${index}" class="${index===page?"active":""}" aria-label="${label}, page ${index+1}" aria-current="${index===page?"step":"false"}"><span>${String(index+1).padStart(2,"0")}</span><small>${label}</small></button>`).join("")}</nav><footer class="review-recap-footer"><button type="button" class="ghost weekly-report-download" data-a="download-weekly-recap"><i data-lucide="download"></i> Save as PDF</button><span>Page ${page+1} of ${pages.length}</span><div>${page?`<button type="button" class="ghost" data-a="recap-prev"><i data-lucide="arrow-left"></i> Back</button>`:""}${page<pages.length-1?`<button type="button" data-a="recap-next">Continue <i data-lucide="arrow-right"></i></button>`:`<button type="button" data-a="recap-close">Done <i data-lucide="check"></i></button>`}</div></footer></section></div>`;
 }
 
 function weeklyEmailPreview(){
@@ -459,7 +580,7 @@ function profilePage(){
   const p=S.profile||{name:"Your Name",email:"you@example.com",role:"Productive builder",theme:"forest",timezone:"UTC",bio:"Build deliberate momentum every day.",notifications:true};
   const appearance=p.appearance==="dark"?"dark":"light";
   const onboardingResponses=p.onboardingResponses,browserPermission="unsupported";
-  const email={dailyReminder:p.notifications!==false,dailyTime:"08:00",weeklyMetrics:false,weeklyDay:1,monthlyWins:false,monthlyDay:1,weeklyQuote:false,weeklyQuoteDay:1,weeklyQuoteTime:"08:00",whatsNew:true,newsletter:true,...p.emailPreferences};
+  const email={dailyReminder:true,dailyTime:"08:00",weeklyMetrics:true,weeklyDay:1,monthlyWins:true,monthlyDay:1,weeklyQuote:true,weeklyQuoteDay:1,weeklyQuoteTime:"08:00",whatsNew:true,newsletter:true,...p.emailPreferences};
   const game=initRewards(),hiddenBadgeTitles=new Set(["money mindful","financial ace","scholar","smart planner","budget keeper","perfect month","consistency champ","on track"]);
   const badges=game.badges.filter(badge=>!hiddenBadgeTitles.has(String(badge?.title||"").trim().toLowerCase())).sort((a,b)=>String(b?.earnedOn||"").localeCompare(String(a?.earnedOn||"")));
   const badgeDate=badge=>{const earnedOn=String(badge?.earnedOn||"");if(!earnedOn)return"";const date=new Date(`${earnedOn}T12:00`);return Number.isNaN(date.getTime())?"":date.toLocaleDateString()};
@@ -517,6 +638,10 @@ function profilePage(){
     const detail=template.content.querySelector(selectors[settingsSection]);
     if(!detail)return settingsDetailPage(titles[settingsSection]||"Settings",`<section class="card"><p>This settings page could not be loaded.</p></section>`);
     let content=detail.outerHTML;
+    if(settingsSection==="personal"){
+      const photo=template.content.querySelector(".profile-photo-wrap");
+      if(photo)content=`<section class="card profile-photo-settings"><div><span class="eyebrow">YOUR PROFILE</span><h2>Profile picture</h2><p>Choose a JPEG, PNG, or WebP image.</p></div>${photo.outerHTML}</section>`+content;
+    }
     if(settingsSection==="badges"&&selectedBadge){const dialog=template.content.querySelector(".badge-detail-backdrop");if(dialog)content+=dialog.outerHTML}
     if(settingsSection==="email"&&authUser?.app_metadata?.email_admin===true){const admin=template.content.querySelector(".email-campaign-admin");if(admin)content+=admin.outerHTML}
     if(settingsSection==="email"&&weeklyPreviewOpen){const preview=template.content.querySelector(".weekly-preview-backdrop");if(preview)content+=preview.outerHTML}
@@ -636,6 +761,9 @@ document.addEventListener("click",e=>{
   if(a==="refresh-email-campaigns"){emailCampaignsLoaded=false;loadEmailCampaigns();return}
   if(a==="weekly-preview"){weeklyPreviewOpen=true;render();return}
   if(a==="weekly-preview-close"||(a==="weekly-preview-backdrop"&&e.target===control)){weeklyPreviewOpen=false;render();return}
+  if(a==="download-weekly-report"){downloadPeriodReport("weekly");return}
+  if(a==="download-period-report"){downloadPeriodReport(control.dataset.period);return}
+  if(a==="download-weekly-recap"&&reviewRecap){downloadWeeklyReport(reviewRecap);return}
   if(a==="recap-close"||(a==="recap-backdrop"&&e.target===control)){reviewRecap=null;render();return}
   if(a==="recap-open"){const saved=S.reviews[Number(control.dataset.reviewIndex)];if(saved?.weeklySummary){reviewRecap=saved.weeklySummary;reviewRecapPage=0;render()}return}
   if(a==="recap-next"){reviewRecapPage=Math.min(2,reviewRecapPage+1);render();return}

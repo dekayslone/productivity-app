@@ -365,22 +365,22 @@ Deno.serve(async request => {
   for (const subscriber of (data || []) as Subscriber[]) {
     const profile = (subscriber.state?.profile || {}) as Profile;
     const prefs = {
-      dailyReminder: false,
+      dailyReminder: true,
       dailyTime: "08:00",
-      weeklyMetrics: false,
+      weeklyMetrics: true,
       weeklyDay: 1,
-      monthlyWins: false,
+      monthlyWins: true,
       monthlyDay: 1,
-      weeklyQuote: false,
+      weeklyQuote: true,
       weeklyQuoteDay: 1,
       weeklyQuoteTime: "08:00",
-      whatsNew: false,
-      newsletter: false,
+      whatsNew: true,
+      newsletter: true,
       ...profile.emailPreferences,
     };
     prefs.whatsNew = profile.emailPreferences?.whatsNew !== false;
     prefs.newsletter = profile.emailPreferences?.newsletter !== false;
-    prefs.dailyReminder = profile.emailPreferences?.dailyReminder ?? profile.notifications !== false;
+    prefs.dailyReminder = profile.emailPreferences?.dailyReminder !== false;
     const clock = localClock(now, normalizeTimezone(profile.timezone));
     const previousMonthEnd = shiftDate(`${clock.date.slice(0, 7)}-01`, -1);
     const previousMonthStart = `${previousMonthEnd.slice(0, 7)}-01`;

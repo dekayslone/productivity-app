@@ -133,6 +133,24 @@ main {
 .app-notification-close { display: grid; width: 32px; height: 32px; place-items: center; padding: 0; color: var(--mut); background: color-mix(in srgb, var(--bg-deep) 70%, transparent); border: 1px solid transparent; border-radius: 9px; }
 .app-notification-close:hover { color: var(--tx); background: var(--bg-deep); border-color: var(--bd); box-shadow: none; transform: none; }
 .app-notification-close svg { width: 16px; height: 16px; }
+.whats-new-backdrop { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: 20px; background: rgba(12, 28, 25, .68); backdrop-filter: blur(8px); animation: recap-fade 180ms ease-out both; }
+.whats-new-dialog { display: grid; justify-items: center; width: min(100%, 530px); max-height: min(92dvh, 760px); overflow-y: auto; padding: 30px 34px 25px; color: var(--tx); background: linear-gradient(145deg, color-mix(in srgb, var(--card) 96%, var(--ac2)), var(--card) 62%); border: 1px solid color-mix(in srgb, var(--ac) 26%, var(--bd)); border-radius: 23px; box-shadow: 0 30px 90px rgba(0, 0, 0, .34); text-align: center; animation: recap-rise 300ms cubic-bezier(.2, .8, .2, 1) both; }
+.whats-new-mark { display: grid; width: 54px; height: 54px; place-items: center; margin-bottom: 15px; color: var(--ac-deep); background: var(--ac2); border: 1px solid color-mix(in srgb, var(--ac) 18%, var(--bd)); border-radius: 18px; }
+.whats-new-mark svg { width: 26px; height: 26px; }
+.whats-new-dialog > .eyebrow { color: var(--ac-deep); font-weight: 800; letter-spacing: .1em; }
+.whats-new-dialog h1 { margin: 8px 0 0; font: 700 clamp(1.55rem, 5vw, 2rem)/1.15 "Space Grotesk", sans-serif; letter-spacing: -.03em; }
+.whats-new-intro { margin: 8px 0 18px; color: var(--mut); font-size: .82rem; line-height: 1.5; }
+.whats-new-list { display: grid; width: 100%; gap: 9px; margin: 0; padding: 0; list-style: none; text-align: left; }
+.whats-new-list li { display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: center; gap: 11px; padding: 11px 12px; background: color-mix(in srgb, var(--card) 72%, var(--ac2)); border: 1px solid var(--bd); border-radius: 13px; }
+.whats-new-list li > span { display: grid; width: 36px; height: 36px; place-items: center; color: var(--ac-deep); background: var(--ac2); border-radius: 11px; }
+.whats-new-list svg { width: 17px; height: 17px; }
+.whats-new-list li > div { display: grid; gap: 3px; }
+.whats-new-list strong { font-size: .75rem; line-height: 1.35; }
+.whats-new-list small { color: var(--mut); font-size: .67rem; line-height: 1.4; }
+.whats-new-done { display: inline-flex; min-height: 43px; align-items: center; justify-content: center; gap: 9px; margin-top: 19px; padding: 9px 17px; }
+.whats-new-done svg { width: 16px; height: 16px; }
+.whats-new-once { margin-top: 10px; color: var(--mut); font-size: .64rem; }
+body:has(.whats-new-backdrop) { overflow: hidden; }
 @keyframes app-notification-in { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 #celebration:not(.is-visible) { display: none; }
 .celebration-backdrop { position: fixed; z-index: 90; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(10, 28, 24, .62); backdrop-filter: blur(7px); }
@@ -150,6 +168,10 @@ main {
 	#app-notification { right: 12px; bottom: calc(94px + env(safe-area-inset-bottom, 0px)); width: calc(100vw - 24px); }
 	.app-notification-toast { grid-template-columns: 40px minmax(0, 1fr) 30px; gap: 10px; padding: 16px 12px 13px; border-radius: 16px; }
 	.app-notification-icon { width: 40px; height: 40px; border-radius: 13px; }
+	.whats-new-backdrop { padding: 12px; }
+	.whats-new-dialog { padding: 24px 17px 20px; border-radius: 19px; }
+	.whats-new-list li { grid-template-columns: 34px minmax(0, 1fr); gap: 9px; padding: 10px; }
+	.whats-new-list li > span { width: 33px; height: 33px; }
 	.celebration-backdrop { padding: 14px; }
 	.celebration-dialog { padding: 27px 19px 20px; border-radius: 18px; }
 }

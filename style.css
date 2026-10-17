@@ -175,6 +175,70 @@ body:has(.whats-new-backdrop) { overflow: hidden; }
 	.celebration-backdrop { padding: 14px; }
 	.celebration-dialog { padding: 27px 19px 20px; border-radius: 18px; }
 }
+
+.friendly-empty { display: grid; justify-items: center; gap: 7px; padding: 22px 16px; color: var(--mut); background: var(--card); border: 1px dashed var(--bd); border-radius: 14px; text-align: center; }
+.friendly-empty strong { color: var(--tx); font: 700 .86rem "Space Grotesk", sans-serif; }
+.friendly-empty > span:last-child { font-size: .73rem; }
+.mascot { display: grid; width: 42px; height: 42px; place-items: center; background: var(--ac2); border-radius: 15px; font-size: 24px; }
+.why-summary-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 15px 0 20px; padding: 17px 19px; background: linear-gradient(120deg, var(--ac2), var(--card) 70%); border: 1px solid color-mix(in srgb, var(--ac) 24%, var(--bd)); border-radius: 16px; }
+.why-summary-card > div { min-width: 0; }
+.why-summary-card p { margin: 5px 0 0; color: var(--tx); font-size: .84rem; font-weight: 700; line-height: 1.55; }
+.why-summary-empty { justify-content: flex-start; }
+.why-summary-empty .mascot { flex: none; }
+.why-summary-empty button { flex: none; }
+.goal-why { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin: 12px 0 9px; padding: 10px 12px; background: color-mix(in srgb, var(--ac2) 55%, var(--card)); border-radius: 11px; }
+.goal-why p { margin: 2px 0; color: var(--mut); font-size: .72rem; line-height: 1.5; }
+.goal-why button { min-height: 38px; flex: none; color: var(--ac-deep); font-size: .68rem; }
+.task-actions-menu { position: relative; }
+.task-actions-menu > summary { display: inline-flex; min-height: 42px; align-items: center; gap: 6px; padding: 8px 11px; color: var(--mut); background: var(--card); border: 1px solid var(--bd); border-radius: 10px; cursor: pointer; font-size: .73rem; font-weight: 700; list-style: none; }
+.task-actions-menu > summary::-webkit-details-marker { display: none; }
+.task-actions-menu > summary:hover { color: var(--ac-deep); background: var(--ac2); }
+.task-actions-menu > summary svg { width: 17px; height: 17px; }
+.task-actions-popover { position: absolute; z-index: 8; top: calc(100% + 6px); right: 0; min-width: 150px; padding: 6px; background: var(--card); border: 1px solid var(--bd); border-radius: 11px; box-shadow: var(--shadow); }
+.task-actions-popover button { width: 100%; min-height: 42px; justify-content: flex-start; }
+.confirm-dialog { width: min(100%, 420px); padding: 25px; color: var(--tx); background: var(--card); border: 1px solid var(--bd); border-radius: 19px; box-shadow: 0 24px 65px rgba(0,0,0,.24); }
+.confirm-dialog h2 { margin: 8px 0; color: var(--tx); font-size: 1.2rem; text-transform: none; }
+.confirm-dialog p { color: var(--mut); font-size: .8rem; }
+.confirm-dialog > div { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
+.confirm-dialog button { min-height: 44px; }
+.task-row.just-completed { animation: task-leap 650ms ease-out both !important; }
+.task-celebration { position: fixed; right: 20px; bottom: 26px; z-index: 92; display: flex; align-items: center; gap: 10px; max-width: min(380px, calc(100vw - 32px)); padding: 13px 17px; color: var(--tx); background: var(--card); border: 1px solid color-mix(in srgb, var(--ac) 34%, var(--bd)); border-radius: 14px; box-shadow: 0 12px 35px rgba(15,34,29,.18); font-size: .78rem; font-weight: 700; animation: task-leap 420ms ease-out both; }
+.task-celebration svg { width: 19px; height: 19px; flex: none; color: var(--ac); }
+.streak-gentle-note { margin-top: 8px; color: var(--mut); font-size: .68rem; }
+.weekly-review-prompt { color: var(--ac-deep); font-size: .84rem; font-weight: 700; }
+.why-wizard-backdrop { position: fixed; z-index: 105; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: 20px; background: rgba(10, 28, 24, .62); backdrop-filter: blur(6px); }
+.why-wizard-shell { width: min(100%, 520px); margin: auto; }
+.why-wizard-card { display: grid; gap: 12px; padding: 30px; color: var(--tx); background: var(--card); border: 1px solid var(--bd); border-radius: 22px; box-shadow: 0 22px 60px rgba(0,0,0,.22); }
+.why-wizard-card.auth-card { color: #edf5f0; background: #142424; border-color: #304846; }
+.why-wizard-card h1 { margin: 2px 0 0; font-size: clamp(1.55rem, 5vw, 2rem); }
+.why-wizard-card > p { margin: 0; color: var(--mut); font-size: .8rem; }
+.why-wizard-card.auth-card > p { color: #9eb1ab; }
+.why-progress { display: flex; gap: 8px; margin: 8px 0 4px; }
+.why-progress span { width: 28px; height: 7px; background: var(--bd); border-radius: 999px; }
+.why-progress span.complete, .why-progress span.current { background: var(--ac); }
+.why-answer-label { color: var(--mut); font-size: .72rem; font-weight: 700; }
+.why-wizard-card.auth-card .why-answer-label { color: #a8b9b3; }
+.why-wizard-card textarea { width: 100%; min-height: 116px; padding: 12px; color: var(--tx); background: var(--bg); border: 1px solid var(--bd); border-radius: 12px; font: 500 .88rem/1.5 "Manrope", sans-serif; resize: vertical; }
+.why-wizard-card.auth-card textarea { color: #edf5f0; background: #0e191a; border-color: #304846; }
+.why-wizard-actions { display: flex; justify-content: space-between; gap: 10px; }
+.why-wizard-actions button { min-height: 44px; }
+.why-wizard-actions button:only-child { margin-left: auto; }
+.why-skip { justify-self: center; min-height: 42px; padding: 8px 12px; color: var(--mut); background: transparent; font-size: .72rem; }
+.why-skip:hover { color: var(--ac-deep); background: var(--ac2); }
+body:has(.why-wizard-backdrop), body:has(.why-wizard-shell) { overflow: hidden; }
+@keyframes task-leap { 0% { opacity: .7; transform: translateY(5px) scale(.99); } 60% { opacity: 1; transform: translateY(-2px) scale(1.01); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+@media (max-width: 520px) {
+	.why-summary-card { align-items: flex-start; flex-wrap: wrap; padding: 14px; }
+	.why-summary-empty button { width: 100%; }
+	.why-wizard-card { padding: 24px 19px; border-radius: 18px; }
+	.confirm-dialog { padding: 22px 18px; }
+	.task-celebration { right: 12px; bottom: calc(94px + env(safe-area-inset-bottom, 0px)); }
+	.task-header-actions { gap: 7px; }
+	.task-actions-menu > summary span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.task-row.just-completed, .task-celebration { animation: none; }
+}
 .top-date { color: var(--mut); font-size: 0.76rem; }
 .avatar { display: grid; width: 32px; height: 32px; place-items: center; background: var(--ac2); color: var(--ac-deep); border: 2px solid var(--card-solid); border-radius: 50%; font: 700 0.68rem "Space Grotesk", sans-serif; }
 .avatar-button { width: 44px; height: 44px; flex: none; padding: 0; cursor: pointer; transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }

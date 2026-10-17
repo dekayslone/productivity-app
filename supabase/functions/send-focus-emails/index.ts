@@ -52,16 +52,16 @@ const dailyEmail = (state: Record<string, any>, today: string) => {
   const habits = getHabits(state).filter(habit => habit.kind !== "weekly")
     .filter(habit => (habit.log?.[today] || 0) < (habit.target || 1));
   const dueHtml = due.length
-    ? `<ul>${due.slice(0, 8).map(task => `<li>${escapeHtml(task.t)} <small>${task.due! < today ? "Overdue" : "Due today"}</small></li>`).join("")}</ul>`
-    : "<p>You have no overdue or due-today tasks.</p>";
+    ? `<ul>${due.slice(0, 8).map(task => `<li>${escapeHtml(task.t)} <small>${task.due! < today ? "Waiting for you" : "Due today"}</small></li>`).join("")}</ul>`
+    : "<p>You have no waiting or due-today tasks.</p>";
   const habitHtml = habits.length
     ? `<ul>${habits.slice(0, 8).map(habit => `<li>${escapeHtml(habit.name)}</li>`).join("")}</ul>`
     : "<p>Your daily habits are complete.</p>";
   const sections: [string, string][] = [["Tasks to review", dueHtml]];
   if (!state.accountabilityScoped) sections.push(["Habits to keep moving", habitHtml]);
   return {
-    subject: `Your Hoptasks plan for ${formatDate(today)}`,
-    html: emailLayout("A fresh day, a clear plan", `Here is your Hoptasks check-in for ${formatDate(today)}.`, sections),
+    subject: `Hop on it · ${formatDate(today)}`,
+    html: emailLayout("Hop on it.", `Your Hoptasks check-in for ${formatDate(today)}.`, sections),
   };
 };
 

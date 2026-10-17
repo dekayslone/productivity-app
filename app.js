@@ -1,6 +1,6 @@
 const CATS=["Reading","Bible & Prayer","Academics","Courses","Public Speaking","Health","Other"];
 const REFERRAL_SOURCES=["Search engine","Social media","Friend or family","App store","Other"];
-const WHATS_NEW_VERSION="recap-pdf-settings-20261013";
+const WHATS_NEW_VERSION="growth-monthly-scores-20261017";
 const db=window.supabase?.createClient(window.FOCUS_SUPABASE_URL,window.FOCUS_SUPABASE_PUBLISHABLE_KEY);
 let emailCampaigns=[],emailCampaignsLoading=false,emailCampaignsLoaded=false;
 async function loadEmailCampaigns(){if(!db||emailCampaignsLoading||emailCampaignsLoaded)return;emailCampaignsLoading=true;const{data,error}=await db.from("email_campaigns").select("id,campaign_type,title,subject,publish_at").order("publish_at",{ascending:false}).limit(12);emailCampaignsLoading=false;if(error){toast("Could not load email campaigns. Check admin access.");return}emailCampaigns=data||[];emailCampaignsLoaded=true;if(tab==="profile"&&(!settingsSection||settingsSection==="email"))render()}
@@ -20,10 +20,69 @@ function normalizeState(state,user){
  normalized.weeklyHistory=isRecord(normalized.weeklyHistory)?normalized.weeklyHistory:{};
  return normalized
 }
+let growthHistoryReady=false;
+function growthDate(value,fallback){
+ if(typeof value==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(value))return value;
+ if(value){const date=new Date(value);if(Number.isFinite(date.getTime()))return`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`}
+ return fallback;
+}
+function growthRecords(state){
+ const goals=new Map(),tasks=new Map(),habits=[];
+ for(const goal of state.goals||[]){
+  const taskIds=[];
+  for(const project of goal.projects||[])for(const task of project.tasks||[]){
+   if(!task.id)continue;
+   taskIds.push(task.id);
+   tasks.set(task.id,{id:task.id,goalId:goal.id,createdOn:growthDate(task.createdOn,goal.createdOn),due:growthDate(task.due,""),done:!!task.done,doneOn:growthDate(task.doneOn,null)});
+  }
+  for(const task of state.tasks||[])if(task.goalId===goal.id&&task.id){
+   taskIds.push(task.id);
+   tasks.set(task.id,{id:task.id,goalId:goal.id,createdOn:growthDate(task.createdOn,goal.createdOn),due:growthDate(task.due,""),done:!!task.done,doneOn:growthDate(task.doneOn,null)});
+  }
+  goals.set(goal.id,{id:goal.id,createdOn:growthDate(goal.createdOn,state.meta.growthHistory?.startedOn),taskIds:[...new Set(taskIds)].sort()});
+ }
+ for(const task of state.tasks||[])if(task.id&&!tasks.has(task.id)){
+  tasks.set(task.id,{id:task.id,goalId:null,createdOn:growthDate(task.createdOn,state.meta.growthHistory?.startedOn),due:growthDate(task.due,""),done:!!task.done,doneOn:growthDate(task.doneOn,null)});
+ }
+ for(const habit of state.habits||[])if(habit.id){
+  const scheduleDays=habit.scheduleDays||habit.daysOfWeek||habit.schedule?.days;
+  habits.push({id:habit.id,createdOn:growthDate(habit.createdOn,state.meta.growthHistory?.startedOn),kind:habit.kind||"daily",target:Math.max(1,Number(habit.target)||1),scheduleDays:Array.isArray(scheduleDays)?scheduleDays.map(Number).filter(day=>Number.isInteger(day)&&day>=0&&day<=6):null,log:isRecord(habit.log)?{...habit.log}:{}});
+ }
+ return{goals:[...goals.values()],tasks:[...tasks.values()].sort((a,b)=>String(a.id).localeCompare(String(b.id))),habits};
+}
+function appendGrowthSnapshot(state,date=td()){
+ const history=state.meta?.growthHistory;if(!history||!Array.isArray(history.snapshots))return;
+ const previous=history.snapshots.at(-1),previousGoals=new Set((previous?.goals||[]).map(goal=>goal.id)),previousTasks=new Set((previous?.tasks||[]).map(task=>task.id)),previousHabits=new Set((previous?.habits||[]).map(habit=>habit.id));
+ for(const goal of state.goals||[])if(goal.id&&!previousGoals.has(goal.id)&&!goal.createdOn)goal.createdOn=date;
+ for(const goal of state.goals||[])for(const project of goal.projects||[])for(const task of project.tasks||[])if(task.id&&!previousTasks.has(task.id)&&!task.createdOn)task.createdOn=date;
+ for(const task of state.tasks||[])if(task.id&&!previousTasks.has(task.id)&&!task.createdOn)task.createdOn=date;
+ for(const habit of state.habits||[])if(habit.id&&!previousHabits.has(habit.id)&&!habit.createdOn)habit.createdOn=date;
+ const snapshot={date,at:new Date().toISOString(),...growthRecords(state)};
+ const priorContent=previous&&JSON.stringify({goals:previous.goals,tasks:previous.tasks,habits:previous.habits});
+ const nextContent=JSON.stringify({goals:snapshot.goals,tasks:snapshot.tasks,habits:snapshot.habits});
+ if(previous?.date===date&&priorContent===nextContent)return;
+ history.snapshots.push(snapshot);
+}
+function ensureGrowthHistory(state=S){
+ state.meta=state.meta||{};
+ const startedOn=growthDate(state.meta.growthHistory?.startedOn,td());
+ if(!state.meta.growthHistory||!Array.isArray(state.meta.growthHistory.snapshots)){
+  state.meta.growthHistory={startedOn,snapshots:[]};
+  for(const goal of state.goals||[])if(!goal.createdOn)goal.createdOn=startedOn;
+  for(const goal of state.goals||[])for(const project of goal.projects||[])for(const task of project.tasks||[])if(!task.createdOn)task.createdOn=startedOn;
+  for(const task of state.tasks||[])if(!task.createdOn)task.createdOn=startedOn;
+  for(const habit of state.habits||[])if(!habit.createdOn)habit.createdOn=startedOn;
+  state.meta.growthHistory.snapshots.push({date:startedOn,at:new Date().toISOString(),...growthRecords(state)});
+ }else{
+  state.meta.growthHistory.startedOn=startedOn;
+  appendGrowthSnapshot(state);
+ }
+ if(state===S)growthHistoryReady=true;
+}
 let tab="today",gm=null,mem={},analyticsFocus=null,editingGoal=null,editingTask=null,schedulerDate=null,analyticsMonth=null,authUser=null,cloudHydrated=false,authMode="login",weeklyPreviewOpen=false,mobileMoreOpen=false,notificationOpen=false,notificationFilter="all",reviewRecap=null,reviewRecapPage=0,badgeDetailIndex=null,settingsSection=null,settingsOrigin=false,whatsNewOpen=false,storagePersistenceRequested=false,cloudWriteQueue=Promise.resolve(),pendingCloudSnapshot=null,pendingCloudLocalSaved=true,appNotificationShownFor=null,appNotificationStorageWarningFor=null,whyWizard=null,pendingGoal=null,pendingFirstGoal="",deleteAllConfirm=false,recentlyCompletedTaskId=null;
 let recapStateReady=false;
 S=normalizeState(S,null);
-const save=()=>{if(recapStateReady){refreshRecapSnapshots();trackStreakFreezeUse()}if(authUser){S.meta=S.meta||{};S.meta.cloudUserId=authUser.id;S.meta.updatedAt=new Date().toISOString()}let snapshot;try{snapshot=JSON.stringify(S)}catch(e){toast("Could not prepare this change for saving. Keep this page open and try again.");return false}let localSaved=true;try{localStorage.setItem(authUser?`${K}_${authUser.id}`:K,snapshot)}catch(e){localSaved=false;toast("Device storage is unavailable. Cloud sync will be attempted.")}if(authUser&&cloudHydrated)syncCloud(snapshot,localSaved);return localSaved};
+const save=()=>{if(recapStateReady){refreshRecapSnapshots();trackStreakFreezeUse()}if(authUser){S.meta=S.meta||{};S.meta.cloudUserId=authUser.id;S.meta.updatedAt=new Date().toISOString()}if(growthHistoryReady)appendGrowthSnapshot(S);let snapshot;try{snapshot=JSON.stringify(S)}catch(e){toast("Could not prepare this change for saving. Keep this page open and try again.");return false}let localSaved=true;try{localStorage.setItem(authUser?`${K}_${authUser.id}`:K,snapshot)}catch(e){localSaved=false;toast("Device storage is unavailable. Cloud sync will be attempted.")}if(authUser&&cloudHydrated)syncCloud(snapshot,localSaved);return localSaved};
 function requestStoragePersistence(){if(storagePersistenceRequested)return;storagePersistenceRequested=true;try{navigator.storage?.persist?.().catch(()=>{})}catch(e){}}
 document.addEventListener("pointerdown",requestStoragePersistence,{once:true});
 document.addEventListener("keydown",requestStoragePersistence,{once:true});
@@ -38,7 +97,7 @@ async function loadCloud(){
   if(cloudHydrated&&S.meta?.cloudUserId===authUser.id&&!document.body.classList.contains("auth-mode"))return;
   const user=authUser,storageKey=`${K}_${user.id}`;
   let localState=null,onboardingPending=false;
-  cloudHydrated=false;recapStateReady=false;whatsNewOpen=false;pendingCloudSnapshot=null;
+  cloudHydrated=false;growthHistoryReady=false;recapStateReady=false;whatsNewOpen=false;pendingCloudSnapshot=null;
   try{
     const saved=localStorage.getItem(storageKey);
     if(saved)localState=JSON.parse(saved);
@@ -61,9 +120,12 @@ async function loadCloud(){
     S=normalizeState(S,user);
     onboardingPending=user.user_metadata?.onboarding_required===true&&S.profile.onboardingCompletedFor!==user.id;
     if(onboardingPending)S=emptyState(user);
+    const accountWhy=user.user_metadata?.discover_your_why;
+    if(isRecord(accountWhy)&&!Object.values(S.profile.why||{}).some(value=>typeof value==="string"&&value.trim()))S.profile.why=accountWhy;
     S.profile.email=S.profile.email||user.email||"";
     S.meta.cloudUserId=user.id;S.meta.updatedAt=S.meta.updatedAt||data?.updated_at||new Date().toISOString();
     if(user.user_metadata?.whats_new_version===WHATS_NEW_VERSION)S.meta.whatsNewVersion=WHATS_NEW_VERSION;
+    ensureGrowthHistory(S);
     updateRewards();
     recapStateReady=true;refreshRecapSnapshots();trackStreakFreezeUse();
     let localSaved=true;try{localStorage.setItem(storageKey,JSON.stringify(S))}catch(e){localSaved=false;toast("Cloud data loaded but could not be saved on this device.")}
@@ -74,7 +136,7 @@ async function loadCloud(){
     if(!authUser||authUser.id!==user.id)return;
     if(!localState){cloudHydrated=false;showCloudLoadError(`Could not load this account’s cloud data: ${e instanceof Error?e.message:String(e)}. No local backup was found, and no empty data has been saved.`);return}
     toast("Could not load cloud data. Using this account's saved data.");
-    S=normalizeState(onboardingPending?emptyState(user):S,user);S.profile.email=S.profile.email||user.email||"";S.meta.cloudUserId=user.id;S.meta.updatedAt=S.meta.updatedAt||new Date().toISOString();if(user.user_metadata?.whats_new_version===WHATS_NEW_VERSION)S.meta.whatsNewVersion=WHATS_NEW_VERSION;
+    S=normalizeState(onboardingPending?emptyState(user):S,user);S.profile.email=S.profile.email||user.email||"";S.meta.cloudUserId=user.id;S.meta.updatedAt=S.meta.updatedAt||new Date().toISOString();if(user.user_metadata?.whats_new_version===WHATS_NEW_VERSION)S.meta.whatsNewVersion=WHATS_NEW_VERSION;ensureGrowthHistory(S);
     recapStateReady=true;refreshRecapSnapshots();trackStreakFreezeUse();
     try{localStorage.setItem(storageKey,JSON.stringify(S))}catch(storageError){toast("This account's data could not be saved on this device.")}
     if(onboardingPending){showOnboarding();return}
@@ -103,7 +165,7 @@ function startWhyWizard(context,answers={}){
  whyWizard={context,step:0,answers:{...answers}};
  renderWhyWizard();
 }
-function finishWhyWizard(){
+async function finishWhyWizard(){
  if(!whyWizard)return;
  const {context,answers}=whyWizard;
  if(context==="onboarding"){
@@ -117,7 +179,7 @@ function finishWhyWizard(){
   if(pendingFirstGoal)S.goals.push({id:uid(),title:pendingFirstGoal,cat:"Other",month:mon(),pri:S.goals.filter(goal=>goal.month===mon()).length+1,projects:[],why:{...answers}});
   pendingFirstGoal="";
   whyWizard=null;
-  save();document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();return;
+  save();await syncWhyToSupabase(S.profile.why);document.body.classList.remove("auth-mode");document.getElementById("auth").innerHTML="";render();return;
  }
  if(context==="goal"&&pendingGoal){
   S.goals.push({id:uid(),title:pendingGoal.title,cat:pendingGoal.cat,month:pendingGoal.month,pri:S.goals.filter(goal=>goal.month===pendingGoal.month).length+1,projects:[],why:{...answers}});
@@ -184,7 +246,7 @@ function showAppNotification({title,detail,icon="bell-ring",tabName="today",acti
 }
 function closeAppNotification(){const root=document.getElementById("app-notification");if(!root)return;clearTimeout(appNotificationTimer);root.classList.remove("is-visible");root.innerHTML=""}
 function whatsNewDialog(){
- return `<div class="whats-new-backdrop" data-a="whats-new-backdrop"><section class="whats-new-dialog" role="dialog" aria-modal="true" aria-labelledby="whats-new-title"><span class="whats-new-mark"><i data-lucide="sparkles"></i></span><span class="eyebrow">A FRESH UPDATE FOR YOU</span><h1 id="whats-new-title">What’s new in Hoptasks</h1><p class="whats-new-intro">Your progress is easier to review, save, and keep up to date.</p><ul class="whats-new-list"><li><span><i data-lucide="file-down"></i></span><div><strong>Weekly, monthly, and yearly PDF recaps</strong><small>Print or save reports with task, goal, and habit details.</small></div></li><li><span><i data-lucide="notebook-tabs"></i></span><div><strong>More complete progress history</strong><small>Recaps keep task, subtask, and habit records as your workspace changes.</small></div></li><li><span><i data-lucide="snowflake"></i></span><div><strong>Streak freeze reminders</strong><small>We’ll let you know when a freeze protected one of your streaks.</small></div></li><li><span><i data-lucide="sparkles"></i></span><div><strong>A refreshed recap and settings experience</strong><small>Weekly reflections and settings are clearer and easier to use.</small></div></li></ul><button type="button" class="whats-new-done" data-a="whats-new-close">Sounds good <i data-lucide="arrow-right"></i></button><small class="whats-new-once">You’ll only see this update once.</small></section></div>`;
+ return `<div class="whats-new-backdrop" data-a="whats-new-backdrop"><section class="whats-new-dialog" role="dialog" aria-modal="true" aria-labelledby="whats-new-title"><span class="whats-new-mark"><i data-lucide="sparkles"></i></span><span class="eyebrow">A FRESH UPDATE FOR YOU</span><h1 id="whats-new-title">What’s new in Hoptasks</h1><p class="whats-new-intro">Your progress is easier to review, save, and keep up to date.</p><ul class="whats-new-list"><li><span><i data-lucide="chart-no-axes-column-increasing"></i></span><div><strong>Growth scores now track each month</strong><small>Goals, habits, and tasks are scored separately. Older months are only shown when saved history supports them.</small></div></li><li><span><i data-lucide="file-down"></i></span><div><strong>Weekly, monthly, and yearly PDF recaps</strong><small>Print or save reports with task, goal, and habit details.</small></div></li><li><span><i data-lucide="notebook-tabs"></i></span><div><strong>More complete progress history</strong><small>Recaps keep task, subtask, and habit records as your workspace changes.</small></div></li><li><span><i data-lucide="snowflake"></i></span><div><strong>Streak freeze reminders</strong><small>We’ll let you know when a freeze protected one of your streaks.</small></div></li><li><span><i data-lucide="sparkles"></i></span><div><strong>A refreshed recap and settings experience</strong><small>Weekly reflections and settings are clearer and easier to use.</small></div></li></ul><button type="button" class="whats-new-done" data-a="whats-new-close">Sounds good <i data-lucide="arrow-right"></i></button><small class="whats-new-once">You’ll only see this update once.</small></section></div>`;
 }
 function showWhatsNewIfNeeded(){
  if(S.meta?.whatsNewVersion===WHATS_NEW_VERSION)return false;
@@ -418,10 +480,7 @@ function revealOnScroll(){
   revealScrollHandler();
 }
 
-const focusThoughts=["Start with one action that moves something important forward.","A clear next step makes a large goal easier to approach.","Protect a little time for the work you most want to finish.","Progress grows when you return to what matters.","Choose the next task with intention, then begin.","A short, focused effort is still meaningful progress."];
-let focusThoughtIndex=Math.floor(Date.now()/30000)%focusThoughts.length;
-function rotateFocusThought(){focusThoughtIndex=(focusThoughtIndex+1)%focusThoughts.length;const text=document.getElementById("focus-thought-text");if(text)text.textContent=focusThoughts[focusThoughtIndex]}
-function focusThoughtCard(){return `<section class="focus-thought-card"><div class="focus-thought-label"><i data-lucide="quote"></i><span>A thought for now</span></div><blockquote id="focus-thought-text" aria-live="polite">${esc(focusThoughts[focusThoughtIndex])}</blockquote><button type="button" class="ghost" data-a="next-thought" aria-label="Show another thought"><span>Another thought</span><i data-lucide="arrow-right"></i></button></section>`}
+function todayWhyCard(){return whySentence(S.profile?.why)?`<section class="why-summary-card"><div><span class="eyebrow">YOUR WHY</span><p>${esc(whySentence(S.profile.why))}</p></div><button type="button" class="ghost" data-settings-route="why" aria-label="Edit your why"><i data-lucide="pencil"></i></button></section>`:`<section class="why-summary-card why-summary-empty">${mascot()}<div><span class="eyebrow">YOUR WHY</span><p>Give your next leap a reason.</p></div><button type="button" class="ghost" data-settings-route="why">Discover your why</button></section>`}
 function today(){
   const t=td(),all=allTasks().filter(x=>!x.t.done);
   const doneToday=allTasks().filter(x=>x.t.doneOn===t).length;
@@ -431,9 +490,8 @@ function today(){
   <div class="stats"><div class="card kpi"><div class="kpi-icon"><i data-lucide="list-checks"></i></div><div class="big">${all.length}</div><div class="mut">open tasks</div></div>
   <div class="card kpi"><div class="kpi-icon"><i data-lucide="check-circle-2"></i></div><div class="big">${doneToday}</div><div class="mut">${doneToday?"done today":"Nothing yet. Hop on it."}</div></div>
   <div class="card kpi"><div class="kpi-icon"><i data-lucide="repeat-2"></i></div><div class="big">${hd}/${S.habits.filter(h=>h.kind!=="weekly").length}</div><div class="mut">habits</div></div></div>
-  ${whySentence(S.profile?.why)?`<section class="why-summary-card"><div><span class="eyebrow">YOUR WHY</span><p>${esc(whySentence(S.profile.why))}</p></div><button type="button" class="ghost" data-settings-route="why" aria-label="Edit your why"><i data-lucide="pencil"></i></button></section>`:`<section class="why-summary-card why-summary-empty">${mascot()}<div><span class="eyebrow">YOUR WHY</span><p>Give your next leap a reason.</p></div><button type="button" class="ghost" data-settings-route="why">Discover your why</button></section>`}
   ${momentumChart()}
-  ${focusThoughtCard()}
+  ${todayWhyCard()}
   ${core(t)}<h2>Tasks</h2>`;
   h+=all.length?all.sort((a,b)=>(a.t.due||"9999").localeCompare(b.t.due||"9999")).map(x=>taskRow(x)).join(""):friendlyEmpty("Nothing on your list yet.",S.goals.length?"Add a task and take the first step.":"Set a goal, then take the first step.");
   const cur=S.goals.filter(g=>g.month===mon()).sort((a,b)=>(a.pri||99)-(b.pri||99));
@@ -648,6 +706,21 @@ function accountabilityPartnerMarkup(partner={},index=0){
   const goals=S.goals||[],goalIds=Array.isArray(partner.goalIds)?partner.goalIds:[];
   return `<div class="accountability-partner" data-partner-row data-partner-id="${esc(partner.id||uid())}"><div class="accountability-partner-head"><strong>Partner ${index+1}</strong><button type="button" class="ghost" data-a="remove-accountability-partner" aria-label="Remove partner"><i data-lucide="x"></i></button></div><label>Email address<input type="email" data-partner-email value="${esc(partner.email||"")}" placeholder="partner@example.com" autocomplete="email"></label><fieldset class="accountability-goals"><legend>Goals they’ll support</legend>${goals.length?goals.map(goal=>`<label><input type="checkbox" data-partner-goal value="${esc(goal.id)}" ${goalIds.includes(goal.id)?"checked":""}><span>${esc(goal.title)}</span></label>`).join(""):'<p>Add a goal before assigning an accountability partner.</p>'}</fieldset></div>`;
 }
+function accountabilityPartnerEmptyMarkup(){return `<div class="accountability-empty"><i data-lucide="users-round"></i><span><strong>No partners yet</strong><small>Add someone who can support your goals.</small></span></div>`}
+function profilePhotoCard(profile,initials){
+ const hasPhoto=!!profile.photo;
+ return `<section class="card profile-photo-settings" aria-labelledby="profile-photo-title"><div class="profile-photo-preview" aria-hidden="true">${hasPhoto?`<img src="${esc(profile.photo)}" alt="">`:esc(initials)}</div><div class="profile-photo-copy"><span class="eyebrow">YOUR PROFILE</span><h2 id="profile-photo-title">Profile picture</h2><p>Choose a JPEG, PNG, or WebP image.</p></div><div class="profile-photo-actions"><label class="profile-photo-upload"><i data-lucide="camera"></i><span>${hasPhoto?"Change photo":"Upload photo"}</span><input class="profile-photo-input" type="file" accept="image/jpeg,image/png,image/webp" aria-label="${hasPhoto?"Change profile photo":"Upload profile photo"}"></label>${hasPhoto?`<button type="button" class="profile-photo-remove" data-a="remove-profile-photo"><i data-lucide="x"></i> Remove</button>`:""}</div></section>`;
+}
+async function syncWhyToSupabase(why){
+ if(!db||!authUser)return;
+ try{
+  const{data,error}=await db.auth.updateUser({data:{discover_your_why:why}});
+  if(error)throw error;
+  if(data.user&&authUser?.id===data.user.id)authUser=data.user;
+ }catch(error){
+  toast(`Your why is saved in your workspace, but its Supabase profile copy could not be updated: ${error instanceof Error?error.message:String(error)}`);
+ }
+}
 function inAppNotificationSettings(profile){
  const enabled=!!(profile.inAppNotifications??profile.browserNotifications);
  return `<section class="browser-notification-settings"><div><strong>Daily in-app reminders</strong><p>Show one custom Hoptasks popup each day for tasks waiting for you, tasks due today, and unfinished daily habits while the app is open.</p></div><div class="browser-notification-status"><span>Status</span><strong>${enabled?"On":"Off"}</strong></div><button type="button" class="ghost" data-a="toggle-in-app-reminders" aria-pressed="${enabled}">${enabled?"Turn off reminders":"Turn on reminders"}</button><small>These are in-app popups; no browser permission or server-side push is used.</small></section>`;
@@ -682,7 +755,7 @@ function profilePage(){
   <label>How did you hear about us?<select name="referralSource"><option value="">Not specified</option>${REFERRAL_SOURCES.map(source=>`<option value="${esc(source)}" ${p.referralSource===source?"selected":""}>${esc(source)}</option>`).join("")}</select></label>
   <div class="two-col"><label>Role<input type="text" name="role" value="${esc(p.role)}" placeholder="Productive builder"></label><label>Timezone<select name="timezone">${timezones.map(([value,label])=>`<option value="${value}" ${timezone===value?"selected":""}>${label}</option>`).join("")}</select></label></div>
   <label>Bio<textarea name="bio" rows="3" placeholder="Tell us about your focus style">${esc(p.bio||"")}</textarea></label>
-  <section class="accountability-settings" id="accountability-settings"><div class="section-heading"><div><span class="eyebrow">ACCOUNTABILITY</span><h2>Accountability partners</h2></div></div><p>Share task reminders and progress for selected goals with people who have agreed to receive updates.</p><div id="accountability-partner-list" class="accountability-partner-list">${(Array.isArray(p.accountabilityPartners)&&p.accountabilityPartners.length?p.accountabilityPartners:[{}]).map((partner,index)=>accountabilityPartnerMarkup(partner,index)).join("")}</div><button type="button" class="ghost" data-a="add-accountability-partner"><i data-lucide="plus"></i> Add partner</button></section>
+  <section class="accountability-settings" id="accountability-settings"><div class="section-heading"><div><span class="eyebrow">ACCOUNTABILITY</span><h2>Accountability partners</h2></div></div><p>Share task reminders and progress for selected goals with people who have agreed to receive updates.</p><div id="accountability-partner-list" class="accountability-partner-list">${Array.isArray(p.accountabilityPartners)&&p.accountabilityPartners.length?p.accountabilityPartners.map((partner,index)=>accountabilityPartnerMarkup(partner,index)).join(""):accountabilityPartnerEmptyMarkup()}</div><button type="button" class="ghost" data-a="add-accountability-partner"><i data-lucide="plus"></i> Add partner</button></section>
   <div class="profile-form-actions"><button type="submit"><i data-lucide="check"></i> Save profile</button></div></form></div>
   <div class="card email-card" id="email-preferences"><form class="settings-form" data-f="profile-emails"><section class="email-preferences"><div class="section-heading"><div><span class="eyebrow">YOUR INBOX</span><h2>Email preferences</h2></div></div><p class="email-recipient">Account emails go to <strong>${esc(authUser?.email||"Sign in to enable email delivery")}</strong>. Scheduled updates also go to your selected partners.</p>
   <div class="email-setting"><label class="toggle-row"><input type="checkbox" name="dailyReminder" ${email.dailyReminder?"checked":""}> Daily task reminder</label><label class="email-select">Send at<input type="time" name="dailyTime" value="${esc(email.dailyTime||"08:00")}"></label><p>Includes tasks due today or waiting for you, plus habits still to complete.</p></div>
@@ -713,7 +786,7 @@ function profilePage(){
   const template=document.createElement("template");template.innerHTML=h;
   if(!settingsSection){
     const heading=template.content.querySelector(".settings-page-heading"),menu=template.content.querySelector(".settings-menu");
-    return `<div class="profile-page">${heading.outerHTML}${menu.outerHTML}</div>`;
+    return `<div class="profile-page">${heading.outerHTML}${profilePhotoCard(p,initials)}${menu.outerHTML}</div>`;
   }
   if(settingsSection){
     const selectors={personal:"#profile-details",email:"#email-preferences",appearance:"#appearance-settings",reminders:"#reminder-settings",badges:"#profile-badges",why:"#profile-why"};
@@ -721,10 +794,6 @@ function profilePage(){
     const detail=template.content.querySelector(selectors[settingsSection]);
     if(!detail)return settingsDetailPage(titles[settingsSection]||"Settings",`<section class="card"><p>This settings page could not be loaded.</p></section>`);
     let content=detail.outerHTML;
-    if(settingsSection==="personal"){
-      const photo=template.content.querySelector(".profile-photo-wrap");
-      if(photo)content=`<section class="card profile-photo-settings"><div><span class="eyebrow">YOUR PROFILE</span><h2>Profile picture</h2><p>Choose a JPEG, PNG, or WebP image.</p></div>${photo.outerHTML}</section>`+content;
-    }
     if(settingsSection==="badges"&&selectedBadge){const dialog=template.content.querySelector(".badge-detail-backdrop");if(dialog)content+=dialog.outerHTML}
     if(settingsSection==="email"&&authUser?.app_metadata?.email_admin===true){const admin=template.content.querySelector(".email-campaign-admin");if(admin)content+=admin.outerHTML}
     if(settingsSection==="email"&&weeklyPreviewOpen){const preview=template.content.querySelector(".weekly-preview-backdrop");if(preview)content+=preview.outerHTML}
@@ -737,10 +806,18 @@ function settingsDetailPage(title,content){return `<div class="settings-detail-p
 function history(){
   const month=analyticsMonth||mon(),goals=S.goals.filter(g=>g.month===month),totals=analyticsTotals(goals,S.habits,month),tasks=totals.tasks,total=totals.total,done=totals.done;
   if(analyticsFocus){const goal=goals.find(g=>g.id===analyticsFocus);if(goal)return analyticsCategory(goal)}
-  const score=monthlyScore(month,goals,totals.habitsData),overall=score.score,data=monthData(goals,S.habits,month),monthly=monthlyAnalytics(tasks,totals.habitsData,month,total),areas=goals.map((g,i)=>areaCard(g,i,month));
-  const months=[...new Set([...S.goals.map(g=>g.month),mon()])].sort().reverse();
-  return `<div class="analytics-page"><div class="analytics-kicker">MONTHLY TOTAL</div><div class="analytics-title-row"><div><h1>${mname(month)}</h1><div class="analytics-subtitle">Your progress across the areas that matter.</div></div><div class="analytics-controls"><label>Review month<select id="analyticsMonth">${months.map(m=>`<option value="${m}" ${m===month?"selected":""}>${mname(m)}</option>`).join("")}</select></label><span class="analytics-live"><i></i> Live data</span></div></div>
-  <section class="overview-panel"><div class="overview-ring"><svg viewBox="0 0 120 120" aria-label="${overall}% monthly score"><circle class="ring-track" pathLength="100" cx="60" cy="60" r="50"></circle><circle class="ring-progress" pathLength="100" cx="60" cy="60" r="50" style="--progress:${overall}"></circle></svg><div class="ring-label"><strong data-count="${overall}" data-suffix="%">0%</strong><span>monthly score</span></div></div><div class="overview-copy"><span class="eyebrow">MONTHLY REVIEW</span><h2>Keep the momentum visible.</h2><p>${done} of ${total} activities completed across ${goals.length} focus areas. Score blends tasks, goals, and streak.</p><div class="overview-metrics"><div><strong data-count="${score.taskRate}" data-suffix="%">0%</strong><span>task rate</span></div><div><strong data-count="${score.goalRate}" data-suffix="%">0%</strong><span>goal progress</span></div><div><strong data-count="${score.longest}">0</strong><span>best streak</span></div><div><strong data-count="${monthly.activeDays}">0</strong><span>active days</span></div></div></div></section>
+  const score=HoptasksGrowth.scoreAtMonth(month,td(),S.meta.growthHistory?.snapshots||[]),previousMonth=monthBefore(month),previous=HoptasksGrowth.scoreAtMonth(previousMonth,td(),S.meta.growthHistory?.snapshots||[]),data=monthData(goals,S.habits,month),monthly=monthlyAnalytics(tasks,totals.habitsData,month,total),areas=goals.map((g,i)=>areaCard(g,i,month));
+  const months=new Set([...S.goals.map(g=>g.month),...((S.meta.growthHistory?.snapshots||[]).map(snapshot=>snapshot.date.slice(0,7))),mon()]);
+  const firstTracked=S.meta.growthHistory?.startedOn?.slice(0,7);
+  if(firstTracked){for(let value=firstTracked;value<=mon();value=monthAfter(value))months.add(value)}
+  const scoreText=value=>value===null?"No data yet":`${Math.round(value)}/100`;
+  const categoryText=key=>{const item=score.details[key];if(!item||item.score===null)return item?.reason||"No eligible records.";if(key==="goals")return `${item.eligible} measurable goal${item.eligible===1?"":"s"} · progress gained this month`;if(key==="habits")return `${Number(item.completed.toFixed(1))} / ${Number(item.scheduled.toFixed(1))} scheduled occurrences`;return `${item.completed} / ${item.eligible} completed · ${item.late} late · ${item.overdue} overdue${item.timeliness===null?"":` · ${Math.round(item.timeliness)}% on time`}`};
+  const categoryCard=(key,label)=>`<article class="growth-score-card"><span>${label}</span><strong>${scoreText(score.categories[key])}</strong><small>${esc(categoryText(key))}</small></article>`;
+  const difference=score.score===null||previous.score===null?null:Math.round(score.score-previous.score);
+  const compareText=previous.score===null?"Previous month is unavailable: historical records are missing.":difference===0?"No change from the previous month.":`${difference>0?"+":""}${difference} percentage points from ${mname(previousMonth)}.`;
+  const missingText=score.partial||score.missing.length?`<p class="growth-history-note">${score.partial?"This is a partial month: dated activity is included where available, but earlier history may not be reconstructible. ":""}${esc(score.missing.join(" "))}</p>`:"";
+  return `<div class="analytics-page"><div class="analytics-kicker">MONTHLY TOTAL</div><div class="analytics-title-row"><div><h1>${mname(month)}</h1><div class="analytics-subtitle">Your progress across the areas that matter.</div></div><div class="analytics-controls"><label>Review month<select id="analyticsMonth">${[...months].sort().reverse().map(m=>`<option value="${m}" ${m===month?"selected":""}>${mname(m)}</option>`).join("")}</select></label><span class="analytics-live"><i></i> Month view</span></div></div>
+  <section class="overview-panel"><div class="overview-ring"><svg viewBox="0 0 120 120" aria-label="${score.score===null?"No data yet":`${score.score} out of 100 monthly score`}"><circle class="ring-track" pathLength="100" cx="60" cy="60" r="50"></circle><circle class="ring-progress" pathLength="100" cx="60" cy="60" r="50" style="--progress:${score.score||0}"></circle></svg><div class="ring-label"><strong>${score.score===null?"—":score.score}</strong><span>${score.score===null?"No data yet":"monthly score / 100"}</span></div></div><div class="overview-copy"><span class="eyebrow">MONTHLY REVIEW</span><h2>Keep the momentum visible.</h2><p>Monthly score combines Goals, Habits, and Tasks with normalized weights. Task completion and timeliness are shown separately.</p><div class="growth-score-categories">${categoryCard("goals","Goals score")}${categoryCard("habits","Habits score")}${categoryCard("tasks","Tasks score")}</div><p class="growth-month-comparison"><strong>Previous month:</strong> ${previous.score===null?"No data yet":`${previous.score}/100`} · ${esc(compareText)}</p>${missingText}</div></section>
   ${analyticsChart(data,"Monthly completion")}
   <section class="analytics-section"><div class="section-heading"><div><span class="eyebrow">AREAS OF FOCUS</span><h2>Where your energy is going</h2></div><span class="section-count">${goals.length} areas</span></div><div class="areas-grid">${areas.join("")||`<div class="empty-analytics">Add a goal to start tracking your month.</div>`}</div></section>
   <section class="weekly-panel"><div class="section-heading"><div><span class="eyebrow">MONTHLY REVIEW</span><h2>Monthly activity rhythm</h2></div><span class="analytics-live"><i></i> ${mname(month)}</span></div><div class="weekly-grid"><div class="weekly-metrics"><div><strong data-count="${monthly.done}">0</strong><span>activities completed</span></div><div><strong data-count="${monthly.rate}" data-suffix="%">0%</strong><span>monthly completion</span></div><div><strong data-count="${monthly.activeDays}">0</strong><span>active days</span></div><div><strong data-count="${monthly.longest}">0</strong><span>best streak</span></div></div>${monthlyBars(monthly.bars)}</div></section></div>`;
@@ -753,12 +830,8 @@ function monthData(goals,habits=S.habits,month=mon()){
 function taskStreak(){
   const dates=new Set(allTasks().filter(x=>x.t.done&&x.t.doneOn).map(x=>x.t.doneOn));let d=td();if(!dates.has(d))d=addDays(d,-1);let n=0;while(dates.has(d)){n++;d=addDays(d,-1)}return n;
 }
-function monthlyScore(month,goals,habitsData){
-  const tasks=goals.flatMap(tasksOf),taskRate=tasks.length?Math.round(tasks.filter(t=>t.done).length/tasks.length*100):0,goalRate=goals.length?Math.round(goals.reduce((sum,g)=>sum+prog(g),0)/goals.length):0,days=new Date(+month.slice(0,4),+month.slice(5),0).getDate(),limit=month===mon()?+td().slice(8):days,active=new Set(tasks.filter(t=>t.done&&t.doneOn).map(t=>t.doneOn));
-  Object.entries(habitsData.byDate).forEach(([date,count])=>{if(count)active.add(date)});
-  let longest=0,current=0;for(let day=1;day<=limit;day++){const date=month+"-"+String(day).padStart(2,"0");if(active.has(date)){current++;longest=Math.max(longest,current)}else current=0}
-  const streakRate=Math.min(100,Math.round(longest/7*100)),score=Math.round(taskRate*.5+goalRate*.35+streakRate*.15);return{score,taskRate,goalRate,longest};
-}
+function monthBefore(month){const date=new Date(`${month}-01T12:00:00`);date.setMonth(date.getMonth()-1);return`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`}
+function monthAfter(month){const date=new Date(`${month}-01T12:00:00`);date.setMonth(date.getMonth()+1);return`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`}
 function monthlyAnalytics(tasks,habitsData,month,total){
   const days=new Date(+month.slice(0,4),+month.slice(5),0).getDate(),limit=month===mon()?+td().slice(8):days,daily=[...Array(limit)].map((_,i)=>{const date=month+"-"+String(i+1).padStart(2,"0");return tasks.filter(t=>t.done&&t.doneOn===date).length+(habitsData.byDate[date]||0)}),activeDays=daily.filter(n=>n>0).length,done=daily.reduce((n,v)=>n+v,0);let longest=0,current=0;daily.forEach(value=>{if(value){current++;longest=Math.max(longest,current)}else current=0});return{done,rate:total?Math.round(done/total*100):0,activeDays,longest,bars:[...Array(Math.ceil(limit/7))].map((_,i)=>({label:`W${i+1}`,done:daily.slice(i*7,i*7+7).reduce((n,v)=>n+v,0)}))};
 }
@@ -797,6 +870,7 @@ function circlesPage(){
 }
 
 function render(){
+  ensureGrowthHistory(S);
   checkpointDay();
   let v={today,goals,tasks,scheduler,habits,review,history,profile:profilePage,circles:circlesPage}[tab]();
   if(settingsOrigin&&tab!=="profile")v=`<div class="settings-return"><button type="button" class="settings-back-button" data-a="settings-back"><i data-lucide="arrow-left"></i> Back to settings</button><span>Settings / ${esc(({habits:"Habits",scheduler:"Schedule",review:"Reviews",history:"Growth"})[tab]||"")}</span></div>${v}`;
@@ -855,9 +929,8 @@ document.addEventListener("click",e=>{
   if(a==="close-celebration"){document.getElementById("celebration")?.classList.remove("is-visible");document.getElementById("celebration").innerHTML="";return}
   if(a==="toggle-in-app-reminders"){S.profile=S.profile||{};S.profile.inAppNotifications=!(S.profile.inAppNotifications??S.profile.browserNotifications);delete S.profile.browserNotifications;save();render();if(S.profile.inAppNotifications)checkDailyAppNotification();toast(S.profile.inAppNotifications?"Daily in-app reminders enabled.":"Daily in-app reminders turned off.");return}
   if(a==="appearance-mode"){S.profile=S.profile||{};S.profile.appearance=control.dataset.mode==="dark"?"dark":"light";save();render();return}
-  if(a==="next-thought"){rotateFocusThought();return}
-  if(a==="add-accountability-partner"){const list=document.getElementById("accountability-partner-list");if(list){list.insertAdjacentHTML("beforeend",accountabilityPartnerMarkup({},list.querySelectorAll("[data-partner-row]").length));if(window.lucide)lucide.createIcons()}return}
-  if(a==="remove-accountability-partner"){const list=document.getElementById("accountability-partner-list");control.closest("[data-partner-row]")?.remove();if(list&&!list.querySelector("[data-partner-row]"))list.insertAdjacentHTML("beforeend",accountabilityPartnerMarkup({},0));if(window.lucide)lucide.createIcons();return}
+  if(a==="add-accountability-partner"){const list=document.getElementById("accountability-partner-list");if(list){list.querySelector(".accountability-empty")?.remove();list.insertAdjacentHTML("beforeend",accountabilityPartnerMarkup({},list.querySelectorAll("[data-partner-row]").length));if(window.lucide)lucide.createIcons()}return}
+  if(a==="remove-accountability-partner"){const list=document.getElementById("accountability-partner-list");control.closest("[data-partner-row]")?.remove();if(list&&!list.querySelector("[data-partner-row]")){list.innerHTML=accountabilityPartnerEmptyMarkup();if(window.lucide)lucide.createIcons()}return}
   if(a==="refresh-email-campaigns"){emailCampaignsLoaded=false;loadEmailCampaigns();return}
   if(a==="weekly-preview"){weeklyPreviewOpen=true;render();return}
   if(a==="weekly-preview-close"||(a==="weekly-preview-backdrop"&&e.target===control)){weeklyPreviewOpen=false;render();return}
@@ -927,13 +1000,13 @@ document.addEventListener("submit",async e=>{
   if(k==="why-wizard"){
     const key=whyQuestions[whyWizard.step][0],answer=String(d.get("answer")||"").trim();
     if(answer)whyWizard.answers[key]=answer;else delete whyWizard.answers[key];
-    if(d.has("skip")||whyWizard.step===whyQuestions.length-1)finishWhyWizard();
+    if(d.has("skip")||whyWizard.step===whyQuestions.length-1)await finishWhyWizard();
     else{whyWizard.step++;renderWhyWizard()}
     return;
   }
   if(k==="email-campaign"){if(authUser?.app_metadata?.email_admin!==true||!db){toast("Only an authorized email admin can schedule campaigns.");return}const title=String(d.get("title")||"").trim(),subject=String(d.get("subject")||"").trim(),content=String(d.get("content")||"").trim(),publishAt=new Date(String(d.get("publishAt")||""));if(!title||!subject||!content||!Number.isFinite(publishAt.getTime())||publishAt.getTime()<=Date.now()){toast("Enter a title, subject, message, and a future publish time.");return}const submitButton=f.querySelector('button[type="submit"]');if(submitButton)submitButton.disabled=true;(async()=>{try{const{error}=await db.from("email_campaigns").insert({campaign_type:String(d.get("campaignType")||"whats_new"),title,subject,content,publish_at:publishAt.toISOString(),created_by:authUser.id});if(error){toast("Could not schedule campaign: "+error.message);return}toast("Email campaign scheduled.");emailCampaignsLoaded=false;await loadEmailCampaigns();render()}catch(error){toast("Could not schedule campaign: "+String(error))}finally{if(submitButton)submitButton.disabled=false}})();return}
   if(k==="onboarding"){pendingFirstGoal=String(d.get("firstGoal")||"").trim();startWhyWizard("onboarding");return}
-  if(k==="profile-why"){S.profile=S.profile||{};S.profile.why=Object.fromEntries(whyQuestions.map(([key])=>[key,String(d.get(key)||"").trim()]).filter(([,value])=>value));save();render();toast("Your why is saved.");return}
+  if(k==="profile-why"){S.profile=S.profile||{};S.profile.why=Object.fromEntries(whyQuestions.map(([key])=>[key,String(d.get(key)||"").trim()]).filter(([,value])=>value));save();render();toast("Your why is saved.");await syncWhyToSupabase(S.profile.why);return}
   if(k==="auth"){if(!db){showAuth("Supabase is unavailable. Check your connection.");return}(async()=>{const email=String(d.get("email")||""),password=String(d.get("password")||""),submitButton=f.querySelector('button[type="submit"]');if(submitButton)submitButton.disabled=true;try{if(authMode==="update"){const confirmation=String(d.get("passwordConfirm")||"");if(password!==confirmation){showAuth("The passwords do not match.");return}const result=await db.auth.updateUser({password});if(result.error){showAuth(authErrorMessage(result.error,authMode));return}window.history.replaceState({},document.title,window.location.pathname);authMode="login";await loadCloud();return}const firstName=String(d.get("firstName")||"").trim(),lastName=String(d.get("lastName")||"").trim(),referralSource=String(d.get("referralSource")||""),firstGoal=String(d.get("firstGoal")||"").trim(),result=authMode==="reset"?await db.auth.resetPasswordForEmail(email,{redirectTo:window.location.href}):authMode==="login"?await db.auth.signInWithPassword({email,password}):await db.auth.signUp({email,password,options:{emailRedirectTo:window.location.origin+window.location.pathname,data:{first_name:firstName,last_name:lastName,full_name:[firstName,lastName].filter(Boolean).join(" "),referral_source:referralSource,first_goal:firstGoal,whats_new_version:WHATS_NEW_VERSION}}});if(result.error){showAuth(authErrorMessage(result.error,authMode));return}else if(authMode==="reset")showAuth("Check your email for a secure password reset link.");else if(authMode==="signup"&&!result.data.session)showAuth("Check your email to confirm your account, then sign in.")}catch(error){showAuth("Authentication is unavailable. Please try again.")}finally{if(submitButton)submitButton.disabled=false}})();return}
   if(k==="profile-theme"){S.profile=S.profile||{};S.profile.theme=String(d.get("theme")||S.profile.theme||"forest");save();render();return}
   if(k==="profile-emails"){S.profile=S.profile||{};if(authUser&&db){try{for(const preference of ["whatsNew","newsletter"]){const{error}=await db.rpc("set_email_marketing_preference",{p_preference:preference,p_enabled:!!d.get(preference)});if(error){toast(`Could not update ${preference==="whatsNew"?"product announcement":"newsletter"} subscription: ${error.message}`);return}}}catch(error){toast(`Could not update campaign email preferences: ${String(error)}`);return}}S.profile.emailPreferences={dailyReminder:!!d.get("dailyReminder"),dailyTime:String(d.get("dailyTime")||"08:00"),weeklyMetrics:!!d.get("weeklyMetrics"),weeklyDay:Math.min(7,Math.max(1,Number(d.get("weeklyDay"))||1)),monthlyWins:!!d.get("monthlyWins"),monthlyDay:Math.min(28,Math.max(1,Number(d.get("monthlyDay"))||1)),weeklyQuote:!!d.get("weeklyQuote"),weeklyQuoteDay:Math.min(7,Math.max(1,Number(d.get("weeklyQuoteDay"))||1)),weeklyQuoteTime:String(d.get("weeklyQuoteTime")||"08:00"),whatsNew:!!d.get("whatsNew"),newsletter:!!d.get("newsletter")};S.profile.notifications=S.profile.emailPreferences.dailyReminder;save();render();return}

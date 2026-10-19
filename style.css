@@ -1140,6 +1140,83 @@ body[data-mode="dark"]:has(.analytics-page) #topbar { background: #0e1718; borde
 .schedule-group-head span { font-size: 0.68rem; }
 .scheduler-page .task-row { margin-bottom: 8px; }
 
+.goals-page, .habits-page, .reviews-page { display: grid; gap: 16px; }
+.goals-heading, .habits-heading, .reviews-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+.goals-heading h1, .habits-heading h1, .reviews-heading h1 { margin: 4px 0; }
+.goals-heading p, .habits-heading p, .reviews-heading p { margin: 0; color: var(--mut); font-size: .84rem; }
+.goal-month-picker { display: grid; min-width: 174px; gap: 4px; color: var(--mut); font-size: .67rem; font-weight: 700; }
+.goal-month-picker input { width: 100%; }
+.goal-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 13px 18px; background: color-mix(in srgb, var(--ac2) 38%, var(--card)); border: 1px solid var(--bd); border-radius: 14px; }
+.goal-overview > div { display: grid; gap: 2px; padding: 3px 16px; border-right: 1px solid var(--bd); }
+.goal-overview > div:first-child { padding-left: 2px; }
+.goal-overview > div:last-child { padding-right: 2px; border-right: 0; }
+.goal-overview strong, .habit-overview strong { color: var(--tx); font: 700 1.12rem "Space Grotesk", sans-serif; }
+.goal-overview span, .habit-overview span { color: var(--mut); font-size: .68rem; }
+.goal-compose, .habit-compose-card { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(0, 1.3fr); align-items: center; gap: 20px; margin: 0; padding: 17px 19px; }
+.goal-compose h2, .habit-compose-card h2 { margin: 3px 0; color: var(--tx); font: 600 .95rem "Space Grotesk", sans-serif; text-transform: none; }
+.goal-compose p, .habit-compose-card p { margin: 0; color: var(--mut); font-size: .69rem; line-height: 1.5; }
+.goal-compose > form, .habit-compose { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin: 0 !important; }
+.goal-compose > form input, .goal-compose > form select, .habit-compose input, .habit-compose select { width: 100%; min-width: 0; }
+.goal-compose > form input[type=text] { grid-column: 1 / -1; }
+.goal-compose > form button, .habit-compose button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; }
+.goal-compose > form button svg, .habit-compose button svg { width: 15px; height: 15px; }
+.goal-card { margin: 0; padding: 17px 19px; }
+.goal-card > .bar { height: 7px; margin: 13px 0 0; }
+.goal-card > .project-list { margin-top: 13px; }
+.goal-card .goal-head { gap: 8px; }
+.goal-card .goal-title { line-height: 1.35; }
+.habit-overview { display: flex; align-items: center; gap: 7px; padding: 10px 13px; background: var(--card); border: 1px solid var(--bd); border-radius: 13px; white-space: nowrap; }
+.habit-overview i { width: 1px; height: 23px; margin: 0 4px; background: var(--bd); }
+.habit-freeze-panel { padding: 0 14px; background: var(--card); border: 1px solid var(--bd); border-radius: 12px; }
+.habit-freeze-panel summary { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; color: var(--mut); cursor: pointer; font-size: .68rem; }
+.habit-freeze-panel summary > span { display: inline-flex; align-items: center; gap: 8px; }
+.habit-freeze-panel summary > span:first-child { color: var(--tx); }
+.habit-freeze-panel summary strong { font: 600 .75rem "Space Grotesk", sans-serif; }
+.habit-freeze-panel summary svg { width: 15px; height: 15px; color: var(--ac); }
+.habit-freeze-panel summary > span:last-child svg { color: var(--mut); transition: transform 160ms ease; }
+.habit-freeze-panel[open] summary > span:last-child svg { transform: rotate(180deg); }
+.habit-freeze-panel > p { margin: 0 0 10px 23px; color: var(--mut); font-size: .68rem; }
+.habit-freeze-panel .streak-freeze-balances { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 0 12px 23px; }
+.habit-freeze-panel .streak-freeze-balance { display: flex; align-items: center; gap: 8px; padding: 6px 9px; background: var(--bg-deep); border: 1px solid var(--bd); border-radius: 9px; font-size: .65rem; }
+.habit-freeze-panel .streak-freeze-balance strong { color: var(--ac-deep); }
+.habit-card { margin: 0; padding: 15px 17px; }
+.habit-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.habit-card-heading > div:first-child { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 8px; }
+.habit-card-heading > div:first-child > strong { overflow-wrap: anywhere; font: 600 .88rem "Space Grotesk", sans-serif; }
+.habit-card-actions { display: flex; flex: none; align-items: center; gap: 9px; }
+.habit-card-actions .ghost { display: grid; width: 34px; height: 34px; place-items: center; padding: 0; }
+.habit-card-actions .ghost svg { width: 15px; height: 15px; }
+.habit-streak, .habit-week-total { display: inline-flex; align-items: center; gap: 5px; color: var(--ac-deep); font-size: .7rem; font-weight: 700; }
+.habit-streak svg { width: 14px; height: 14px; }
+.habit-history { display: grid; grid-template-columns: repeat(14, minmax(8px, 1fr)); gap: 5px; margin-top: 10px; }
+.habit-day { height: 16px; background: var(--bg-deep); border: 1px solid var(--bd); border-radius: 5px; }
+.habit-day.is-complete { background: var(--ac); border-color: var(--ac); }
+.habit-day.is-frozen { background: color-mix(in srgb, var(--ac) 36%, var(--ac2)); border-color: color-mix(in srgb, var(--ac) 45%, var(--bd)); }
+.habit-history-label { display: flex; justify-content: space-between; margin-top: 5px; color: var(--mut); font-size: .61rem; }
+.habit-list { display: grid; gap: 9px; }
+.review-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 13px; }
+.review-card { min-width: 0; padding: 17px 18px; background: var(--card); border: 1px solid var(--bd); border-radius: 15px; box-shadow: var(--shadow); }
+.review-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.review-card > header h2 { margin: 3px 0; color: var(--tx); font: 600 .98rem "Space Grotesk", sans-serif; text-transform: none; }
+.review-card > header p { margin: 0; color: var(--mut); font-size: .68rem; }
+.review-period { flex: none; padding: 5px 8px; color: var(--mut); background: var(--bg-deep); border-radius: 20px; font-size: .6rem; }
+.review-auto-summary { display: grid; gap: 3px; margin: 13px 0; padding: 9px 11px; background: color-mix(in srgb, var(--ac2) 34%, var(--card)); border-radius: 9px; }
+.review-auto-summary span { color: var(--mut); font-size: .58rem; font-weight: 800; letter-spacing: .06em; }
+.review-auto-summary strong { color: var(--ac-deep); font-size: .68rem; font-weight: 700; }
+.review-form { display: grid; gap: 9px; }
+.review-form label { display: grid; gap: 4px; color: var(--tx); font-size: .68rem; font-weight: 700; }
+.review-form textarea { min-height: 57px; margin: 0; padding: 9px 10px; font-size: .72rem; font-weight: 400; }
+.review-form button { justify-self: start; display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 8px 12px; font-size: .7rem; }
+.review-form button svg { width: 15px; height: 15px; }
+.weekly-review-card { border-color: color-mix(in srgb, var(--ac) 35%, var(--bd)); }
+.review-history { display: grid; gap: 9px; }
+.review-history > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 2px 1px; }
+.review-history > header h2 { margin: 0; color: var(--tx); font: 600 1rem "Space Grotesk", sans-serif; text-transform: none; }
+.review-history > .card { margin: 0; }
+.reviews-page > .recap-download-card { margin-top: 0; }
+.recap-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.recap-metrics div { min-height: 76px; padding: 11px 13px; }
+
 @media (max-width: 720px) {
 	.analytics-page { padding-bottom: 38px; }
 	.overview-panel { grid-template-columns: 1fr; justify-items: center; text-align: center; padding: 24px 18px; }
@@ -1149,9 +1226,33 @@ body[data-mode="dark"]:has(.analytics-page) #topbar { background: #0e1718; borde
 	.weekly-grid, .detail-columns { grid-template-columns: 1fr; }
 	.compose-grid { grid-template-columns: 1fr 1fr; }
 	.compose-grid input:first-child, .compose-grid button { grid-column: 1 / -1; }
+	.goal-compose, .habit-compose-card { grid-template-columns: 1fr; gap: 12px; }
+	.review-form-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
 	.analytics-title-row { flex-direction: column; align-items: stretch; gap: 10px; }
+	.goals-heading, .habits-heading { align-items: stretch; flex-direction: column; gap: 10px; }
+	.goal-month-picker { width: 100%; }
+	.goal-overview { padding: 11px 9px; }
+	.goal-overview > div { padding: 3px 8px; }
+	.goal-overview strong { font-size: .98rem; }
+	.goal-overview span { font-size: .6rem; }
+	.goal-compose, .habit-compose-card { padding: 14px; }
+	.goal-compose > form, .habit-compose { grid-template-columns: 1fr 1fr; }
+	.goal-compose > form input[type=text], .habit-compose > input:first-child { grid-column: 1 / -1; }
+	.goal-compose > form button, .habit-compose button { grid-column: 1 / -1; }
+	.habit-overview { align-self: flex-start; }
+	.habit-card { padding: 13px; }
+	.habit-card-heading { align-items: flex-start; }
+	.habit-card-actions { gap: 4px; }
+	.habit-history { gap: 3px; }
+	.habit-day { height: 14px; }
+	.review-card { padding: 14px; }
+	.review-card > header { flex-direction: column; gap: 7px; }
+	.recap-download-card { grid-template-columns: 1fr; align-items: start; }
+	.recap-download-actions { justify-content: flex-start; }
+	.recap-download-actions button { flex: 1 1 auto; }
+	.recap-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.section-heading { align-items: flex-start; }
 	.analytics-controls { width: 100%; align-items: center; flex-direction: row; gap: 8px; }
 	.analytics-controls label { min-width: 0; flex: 1; }

@@ -1179,20 +1179,29 @@ body[data-mode="dark"]:has(.analytics-page) #topbar { background: #0e1718; borde
 .habit-freeze-panel .streak-freeze-balances { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 0 12px 23px; }
 .habit-freeze-panel .streak-freeze-balance { display: flex; align-items: center; gap: 8px; padding: 6px 9px; background: var(--bg-deep); border: 1px solid var(--bd); border-radius: 9px; font-size: .65rem; }
 .habit-freeze-panel .streak-freeze-balance strong { color: var(--ac-deep); }
-.habit-card { margin: 0; padding: 15px 17px; }
+.habit-card { margin: 0; padding: 14px 16px 16px; border-radius: 17px; }
 .habit-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.habit-card-heading > div:first-child { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 8px; }
-.habit-card-heading > div:first-child > strong { overflow-wrap: anywhere; font: 600 .88rem "Space Grotesk", sans-serif; }
-.habit-card-actions { display: flex; flex: none; align-items: center; gap: 9px; }
+.habit-streak-label { display: flex; min-width: 0; align-items: center; }
+.habit-card-actions { display: flex; flex: none; align-items: center; gap: 7px; }
 .habit-card-actions .ghost { display: grid; width: 34px; height: 34px; place-items: center; padding: 0; }
 .habit-card-actions .ghost svg { width: 15px; height: 15px; }
 .habit-streak, .habit-week-total { display: inline-flex; align-items: center; gap: 5px; color: var(--ac-deep); font-size: .7rem; font-weight: 700; }
-.habit-streak svg { width: 14px; height: 14px; }
-.habit-history { display: grid; grid-template-columns: repeat(14, minmax(8px, 1fr)); gap: 5px; margin-top: 10px; }
-.habit-day { height: 16px; background: var(--bg-deep); border: 1px solid var(--bd); border-radius: 5px; }
+.habit-streak { padding: 5px 8px; background: color-mix(in srgb, var(--ac2) 68%, var(--card)); border-radius: 20px; }
+.habit-streak svg { width: 14px; height: 14px; color: var(--ac); }
+.habit-log-input { width: 58px; min-height: 36px; padding: 6px 7px; text-align: center; font-size: .73rem; }
+.habit-session-button { display: grid; width: 34px; height: 34px; place-items: center; padding: 0; }
+.habit-session-button svg { width: 16px; height: 16px; }
+.habit-card-content { display: grid; grid-template-columns: minmax(0, 1fr) 144px; align-items: center; gap: 15px; margin-top: 5px; }
+.habit-card-copy { display: grid; min-width: 0; justify-items: start; gap: 5px; }
+.habit-card-copy > strong { color: var(--tx); font: 600 1rem/1.3 "Space Grotesk", sans-serif; overflow-wrap: anywhere; }
+.habit-card-copy .tag { font-size: .62rem; padding: 3px 8px; }
+.habit-completion-count { color: var(--mut); font-size: .67rem; }
+.habit-target-note { color: var(--mut); font-size: .62rem; }
+.habit-history { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; align-items: center; }
+.habit-day { aspect-ratio: 1; min-width: 0; background: color-mix(in srgb, var(--bd) 48%, var(--card)); border: 0; border-radius: 2px; }
 .habit-day.is-complete { background: var(--ac); border-color: var(--ac); }
-.habit-day.is-frozen { background: color-mix(in srgb, var(--ac) 36%, var(--ac2)); border-color: color-mix(in srgb, var(--ac) 45%, var(--bd)); }
-.habit-history-label { display: flex; justify-content: space-between; margin-top: 5px; color: var(--mut); font-size: .61rem; }
+.habit-day.is-frozen { background: color-mix(in srgb, var(--ac) 36%, var(--ac2)); }
+.habit-history-label { grid-column: 1 / -1; margin-top: 2px; color: var(--mut); font-size: .58rem; text-align: right; }
 .habit-list { display: grid; gap: 9px; }
 .review-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 13px; }
 .review-card { min-width: 0; padding: 17px 18px; background: var(--card); border: 1px solid var(--bd); border-radius: 15px; box-shadow: var(--shadow); }
@@ -1245,8 +1254,9 @@ body[data-mode="dark"]:has(.analytics-page) #topbar { background: #0e1718; borde
 	.habit-card { padding: 13px; }
 	.habit-card-heading { align-items: flex-start; }
 	.habit-card-actions { gap: 4px; }
+	.habit-card-content { grid-template-columns: minmax(0, 1fr) 126px; gap: 10px; }
 	.habit-history { gap: 3px; }
-	.habit-day { height: 14px; }
+	.habit-day { border-radius: 2px; }
 	.review-card { padding: 14px; }
 	.review-card > header { flex-direction: column; gap: 7px; }
 	.recap-download-card { grid-template-columns: 1fr; align-items: start; }

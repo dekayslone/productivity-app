@@ -786,8 +786,6 @@ body:has(.badge-detail-backdrop) { overflow: hidden; }
 .review-recap-footer > div { display: flex; gap: 8px; }
 .review-recap-footer button { display: inline-flex; min-height: 38px; align-items: center; gap: 7px; padding: 7px 12px; font-size: 0.72rem; }
 .review-recap-footer svg { width: 15px; height: 15px; }
-.review-recap-footer .weekly-report-download { margin-top: 0; margin-right: auto; }
-.weekly-report-download { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; }
 .recap-download-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 18px; padding: 19px 21px; background: linear-gradient(115deg, color-mix(in srgb, var(--ac2) 45%, var(--card)), var(--card) 72%); border-color: color-mix(in srgb, var(--ac) 19%, var(--bd)); border-radius: 16px; }
 .recap-download-card h2 { margin: 4px 0; font: 700 1.05rem "Space Grotesk", sans-serif; }
 .recap-download-card p { margin: 0; color: var(--mut); font-size: .73rem; line-height: 1.5; }

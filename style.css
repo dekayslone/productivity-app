@@ -1382,6 +1382,10 @@ body[data-mode="dark"] {
 .today-month-section { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--bd); }
 .today-month-section .today-month-goal { margin: 0 0 8px; padding: 14px 16px; }
 .today-month-goal .row b { color: var(--ac-deep); font: 700 .8rem "Space Grotesk", sans-serif; }
+.today-month-progress-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 9px; color: var(--mut); font-size: .66rem; }
+.today-month-progress-meta strong { color: var(--ac-deep); font: 700 .68rem "Space Grotesk", sans-serif; }
+.today-month-goal .bar { margin-top: 5px; }
+.today-month-no-tasks { margin: 9px 0 0; color: var(--mut); font-size: .69rem; }
 .today-month-empty { display: flex; align-items: center; gap: 12px; padding: 16px; background: color-mix(in srgb, var(--ac2) 32%, var(--card)); border: 1px dashed color-mix(in srgb, var(--ac) 35%, var(--bd)); border-radius: 14px; }
 .today-month-empty > svg { width: 22px; height: 22px; flex: none; color: var(--ac); }
 .today-month-empty > div { display: grid; flex: 1; gap: 3px; }
@@ -1416,6 +1420,22 @@ body[data-mode="dark"] {
 .weekly-archive-empty svg { width: 22px; height: 22px; margin-bottom: 3px; color: var(--ac); }
 .weekly-archive-empty strong { color: var(--tx); font: 600 .78rem "Space Grotesk", sans-serif; }
 .weekly-archive-empty span { font-size: .68rem; }
+.weekly-archive-notes { display: grid; gap: 10px; margin-top: 6px; padding-top: 15px; border-top: 1px solid var(--bd); }
+.weekly-archive-notes > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.weekly-archive-notes h3 { margin: 2px 0 0; color: var(--tx); font: 600 .95rem "Space Grotesk", sans-serif; }
+.weekly-archive-note-count { padding: 4px 8px; color: var(--ac-deep); background: var(--ac2); border-radius: 999px; font-size: .63rem; font-weight: 700; }
+.weekly-archive-note-list { display: grid; gap: 8px; }
+.review-note-card { display: grid; gap: 8px; padding: 13px 15px; background: var(--card); border: 1px solid var(--bd); border-radius: 12px; }
+.review-note-card > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--bd); }
+.review-note-type { color: var(--ac-deep); font-size: .58rem; font-weight: 800; letter-spacing: .06em; }
+.review-note-card time { color: var(--mut); font-size: .65rem; }
+.review-note-card > p { display: grid; gap: 2px; margin: 0; font-size: .7rem; }
+.review-note-card > p strong { color: var(--tx); font-size: .65rem; }
+.review-note-card > p span { color: var(--mut); white-space: pre-wrap; overflow-wrap: anywhere; }
+.review-note-card > .review-note-summary { display: block; padding: 7px 9px; color: var(--ac-deep); background: color-mix(in srgb, var(--ac2) 48%, var(--card)); border-radius: 8px; font-size: .65rem; }
+.review-note-card > button { display: inline-flex; min-height: 34px; align-items: center; justify-self: start; gap: 6px; margin-top: 2px; font-size: .68rem; }
+.review-note-card > button svg { width: 15px; height: 15px; }
+.weekly-archive-note-empty { padding: 14px; color: var(--mut); background: var(--card); border: 1px dashed var(--bd); border-radius: 10px; font-size: .68rem; text-align: center; }
 .feedback-card { display: grid; gap: 16px; padding: 21px; }
 .feedback-card > header h2 { margin: 4px 0; font: 600 1.12rem "Space Grotesk", sans-serif; }
 .feedback-card > header p { margin: 0; color: var(--mut); font-size: .75rem; }
@@ -1452,6 +1472,7 @@ body[data-mode="dark"] {
 	.weekly-archive-filters label, .weekly-archive-filters select { min-width: 0; width: 100%; }
 	.weekly-archive-card { align-items: flex-start; flex-direction: column; }
 	.weekly-archive-card button { width: 100%; justify-content: center; }
+	.review-note-card > button { width: 100%; justify-content: center; }
 	.feedback-card { padding: 16px; }
 	.feedback-form > button { width: 100%; justify-content: center; }
 	.review-card:hover { transform: none; }

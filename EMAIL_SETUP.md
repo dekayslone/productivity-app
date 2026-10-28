@@ -50,45 +50,9 @@ Messages go to the confirmed email address on the user's Supabase account. Accou
 
 ## Schedule the function
 
-In the Supabase SQL Editor, replace the project ref and both secret placeholders, then run this SQL. The `YOUR_RANDOM_CRON_SECRET` value must exactly match `EMAIL_CRON_SECRET` set for the Edge Function above. Vault stores the function URL and cron secret outside the scheduled SQL text.
+After deploying the Edge Function, replace `YOUR_PROJECT_REF` and `YOUR_RANDOM_CRON_SECRET` in [supabase-email-cron.sql](./supabase-email-cron.sql), then run the file in the Supabase SQL Editor. The cron secret must exactly match `EMAIL_CRON_SECRET` configured above. The script creates the Vault entries if they do not exist and schedules `focus-email-dispatch` to invoke the function once per minute; re-running it replaces the existing job rather than creating a duplicate.
 
-```sql
-create extension if not exists pg_cron;
-create extension if not exists pg_net;
-
-select vault.create_secret(
-  'https://YOUR_PROJECT_REF.supabase.co/functions/v1/send-focus-emails',
-  'focus_email_endpoint',
-  'Hoptasks scheduled email function URL'
-);
-
-select vault.create_secret(
-  'YOUR_RANDOM_CRON_SECRET',
-  'focus_email_cron_secret',
-  'Bearer secret for Hoptasks email cron'
-);
-
-select cron.unschedule(jobid)
-from cron.job
-where jobname = 'focus-email-dispatch';
-
-select cron.schedule(
-  'focus-email-dispatch',
-  '* * * * *',
-  $job$
-    select net.http_post(
-      url := (select decrypted_secret from vault.decrypted_secrets where name = 'focus_email_endpoint'),
-      headers := jsonb_build_object(
-        'Content-Type', 'application/json',
-        'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'focus_email_cron_secret')
-      ),
-      body := '{}'::jsonb
-    );
-  $job$
-);
-```
-
-Run the two `vault.create_secret` statements only once. If either secret needs rotation, update its Vault entry and the matching Edge Function secret together. Re-running the scheduling section first unschedules the previous cron job.
+Vault keeps the endpoint and authorization secret out of the cron job definition. If rotating the secret later, update the Vault entry and the Edge Function secret together. The script intentionally does not overwrite existing Vault entries.
 
 ## Verify
 

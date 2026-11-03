@@ -1138,31 +1138,36 @@ body[data-mode="dark"]:has(.analytics-page) #topbar { background: #0e1718; borde
 .schedule-group-head span { font-size: 0.68rem; }
 .scheduler-page .task-row { margin-bottom: 8px; }
 
-.goals-page, .habits-page, .reviews-page { display: grid; gap: 16px; }
+.goals-page, .habits-page, .reviews-page { display: grid; gap: 12px; }
 .goals-heading, .habits-heading, .reviews-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
 .goals-heading h1, .habits-heading h1, .reviews-heading h1 { margin: 4px 0; }
 .goals-heading p, .habits-heading p, .reviews-heading p { margin: 0; color: var(--mut); font-size: .84rem; }
-.goal-month-picker { display: grid; min-width: 174px; gap: 4px; color: var(--mut); font-size: .67rem; font-weight: 700; }
+.goal-month-picker { display: grid; min-width: 150px; gap: 4px; color: var(--mut); font-size: .67rem; font-weight: 700; }
 .goal-month-picker input { width: 100%; }
-.goal-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 13px 18px; background: color-mix(in srgb, var(--ac2) 38%, var(--card)); border: 1px solid var(--bd); border-radius: 14px; }
-.goal-overview > div { display: grid; gap: 2px; padding: 3px 16px; border-right: 1px solid var(--bd); }
-.goal-overview > div:first-child { padding-left: 2px; }
-.goal-overview > div:last-child { padding-right: 2px; border-right: 0; }
-.goal-overview strong, .habit-overview strong { color: var(--tx); font: 700 1.12rem "Space Grotesk", sans-serif; }
-.goal-overview span, .habit-overview span { color: var(--mut); font-size: .68rem; }
+.habit-overview strong { color: var(--tx); font: 700 1.12rem "Space Grotesk", sans-serif; }
+.habit-overview span { color: var(--mut); font-size: .68rem; }
 .goal-compose, .habit-compose-card { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(0, 1.3fr); align-items: center; gap: 20px; margin: 0; padding: 17px 19px; }
 .goal-compose h2, .habit-compose-card h2 { margin: 3px 0; color: var(--tx); font: 600 .95rem "Space Grotesk", sans-serif; text-transform: none; }
 .goal-compose p, .habit-compose-card p { margin: 0; color: var(--mut); font-size: .69rem; line-height: 1.5; }
 .goal-compose > form, .habit-compose { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin: 0 !important; }
 .goal-compose > form input, .goal-compose > form select, .habit-compose input, .habit-compose select { width: 100%; min-width: 0; }
-.goal-compose > form input[type=text] { grid-column: 1 / -1; }
+.goal-compose { display: block; padding: 12px; }
+.goal-compose > form { grid-template-columns: minmax(0, 1fr) minmax(120px, .35fr) auto; }
 .goal-compose > form button, .habit-compose button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; }
 .goal-compose > form button svg, .habit-compose button svg { width: 15px; height: 15px; }
-.goal-card { margin: 0; padding: 17px 19px; }
+.goal-card { min-width: 0; margin: 0; padding: 17px 19px; }
 .goal-card > .bar { height: 7px; margin: 13px 0 0; }
 .goal-card > .project-list { margin-top: 13px; }
 .goal-card .goal-head { gap: 8px; }
+.goal-card .goal-head > .g { min-width: 0; }
 .goal-card .goal-title { line-height: 1.35; }
+.goal-card .goal-title b { overflow-wrap: anywhere; }
+.habit-editor { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.habit-editor label { display: grid; min-width: 0; gap: 5px; color: var(--mut); font-size: .68rem; font-weight: 700; }
+.habit-editor input, .habit-editor select { width: 100%; min-width: 0; }
+.habit-editor-actions { display: flex; grid-column: 1 / -1; flex-wrap: wrap; gap: 8px; }
+.habit-editor-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; }
+.habit-editor-actions svg { width: 15px; height: 15px; }
 .habit-overview { display: flex; align-items: center; gap: 7px; padding: 10px 13px; background: var(--card); border: 1px solid var(--bd); border-radius: 13px; white-space: nowrap; }
 .habit-overview i { width: 1px; height: 23px; margin: 0 4px; background: var(--bd); }
 .habit-freeze-panel { padding: 0 14px; background: var(--card); border: 1px solid var(--bd); border-radius: 12px; }
@@ -1234,25 +1239,32 @@ body[data-mode="dark"]:has(.analytics-page) #topbar { background: #0e1718; borde
 	.compose-grid { grid-template-columns: 1fr 1fr; }
 	.compose-grid input:first-child, .compose-grid button { grid-column: 1 / -1; }
 	.goal-compose, .habit-compose-card { grid-template-columns: 1fr; gap: 12px; }
+	.goal-compose { display: block; }
+	.goal-compose > form { grid-template-columns: minmax(0, 1fr) minmax(110px, .4fr); }
+	.goal-compose > form button { grid-column: 1 / -1; }
+	.goal-card { padding: 15px; }
+	.goal-card .goal-head { flex-wrap: wrap; }
+	.goal-card .goal-head > .g { flex: 1 1 100%; }
 	.review-form-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
 	.analytics-title-row { flex-direction: column; align-items: stretch; gap: 10px; }
 	.goals-heading, .habits-heading { align-items: stretch; flex-direction: column; gap: 10px; }
 	.goal-month-picker { width: 100%; }
-	.goal-overview { padding: 11px 9px; }
-	.goal-overview > div { padding: 3px 8px; }
-	.goal-overview strong { font-size: .98rem; }
-	.goal-overview span { font-size: .6rem; }
 	.goal-compose, .habit-compose-card { padding: 14px; }
-	.goal-compose > form, .habit-compose { grid-template-columns: 1fr 1fr; }
-	.goal-compose > form input[type=text], .habit-compose > input:first-child { grid-column: 1 / -1; }
+	.goal-compose { padding: 10px; }
+	.goal-compose > form { grid-template-columns: 1fr; }
 	.goal-compose > form button, .habit-compose button { grid-column: 1 / -1; }
+	.habit-compose { grid-template-columns: 1fr 1fr; }
+	.habit-compose > input:first-child { grid-column: 1 / -1; }
 	.habit-overview { align-self: flex-start; }
 	.habit-card { padding: 13px; }
 	.habit-card-heading { align-items: flex-start; }
 	.habit-card-actions { gap: 4px; }
-	.habit-card-content { grid-template-columns: minmax(0, 1fr) 126px; gap: 10px; }
+	.habit-card-content { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+	.habit-history { max-width: 220px; }
+	.habit-editor { grid-template-columns: 1fr; }
+	.habit-editor-actions { grid-column: auto; }
 	.habit-history { gap: 3px; }
 	.habit-day { border-radius: 2px; }
 	.review-card { padding: 14px; }
